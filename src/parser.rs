@@ -51,7 +51,7 @@ fn args(argslist: ArgList<String>, mut inputargs: Vec<String>) -> Result<ArgList
             }
         } else if input.starts_with('-') {
             if let Some(input) = input.chars().nth(1) {
-                if let Some(foundarg) = argslist.get(ArgName::Short::<String>(input)) {
+                if let Some(foundarg) = argslist.get(ArgName::Short(input)) {
                     argopt = Some(foundarg);
                     inputargs.remove(0);
                 } else {

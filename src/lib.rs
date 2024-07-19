@@ -1,46 +1,132 @@
+#![crate_name = "tiny_args"]
+//#![warn(missing_docs)]
+
+//! # What is this?
+//!
+//! This is a bare-bones parser for CLI commands made for Tiny Cloud.
+//! It was made in place of [clap](https://docs.rs/clap/latest/clap/) because
+//! tcloud plugins need a way to configure and execute subcommands from different crates.
+//! It can be used for other projects too, but keep it mind that it is made for a specific project,
+//! so if you need some particular features that are not supposed to be here you should use some other crate.
+//!
+//! # Example
+//!
+//! ```rust
+//! use tiny_args::*;
+//!
+//! let parsed = Command::create("myapp", "This is my cool app!")
+//!        .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
+//!        .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
+//!        .arg(arg!(--path), ArgType::Path, "Path to something.")
+//!        .author("Me!")
+//!        .build()
+//!        .parse()
+//!        .unwrap(); // It would be better to show the error to the user instead of panicking
+//!
+//! if parsed.args.get(arg!(-h)).is_some() {
+//!     println!("{}", parsed.help);
+//!     return;
+//! }
+//!
+//! if let Some(path) = parsed.args.get(arg!(--path)) {
+//!     let mut pathbuf = path.value().path();
+//!     pathbuf.push("some/other/path");
+//!     println!("My path: {path}", path = pathbuf.into_os_string().into_string().unwrap());
+//! }
+//! ```
+
 use std::{env, fmt, path::PathBuf};
 
 mod help;
 mod parser;
 mod tests;
+#[macro_use]
+mod macros;
 
+/// Arguments' value types.
+/// Used when configuring the command line to specify what values each argument contains.
 #[derive(Clone, Debug)]
 pub enum ArgType {
+    /// A [`String`].
     String,
+
+    /// An [`i64`].
     Num,
+
+    /// A [`f64`].
     Float,
+
+    /// A [`PathBuf`]
     Path,
+
+    /// A normal flag, does not contain any value.
     Flag,
 }
 
+/// Arguments' values.
+/// Accessible after the command line has been parsed with [`Command::parse`] or [`Command::parse_from`].
 #[derive(Clone, Debug)]
 pub enum ArgValue {
+    /// See [`ArgValue::string`]
     String(String),
+
+    /// See [`ArgValue::num`]
     Num(i64),
+
+    /// See [`ArgValue::float`]
     Float(f64),
+
+    /// See [`ArgValue::path`]
     Path(PathBuf),
+
+    /// Flags do not carry any value.
+    /// You can see if they were activated by checking if the argument exists in the argument's
+    /// list after the command line has been parsed.
     Flag,
 }
 
 impl ArgValue {
+    /// Unwraps the value and returns the inner string.
+    ///
+    /// # Panic
+    ///
+    /// It panics if the value is not a string.
     pub fn string(self) -> String {
         match self {
             Self::String(s) => s,
             _ => panic!("This argument's value is not a string"),
         }
     }
+
+    /// Unwraps the value and returns the inner [`i64`].
+    ///
+    /// # Panic
+    ///
+    /// It panics if the value is not a number.
     pub fn num(self) -> i64 {
         match self {
             Self::Num(n) => n,
             _ => panic!("This argument's value is not a number"),
         }
     }
+
+    /// Unwraps the value and returns the inner [`f64`].
+    ///
+    /// # Panic
+    ///
+    /// It panics if the value is not a float.
     pub fn float(self) -> f64 {
         match self {
             Self::Float(f) => f,
             _ => panic!("This argument's value is not a float"),
         }
     }
+
+    /// Unwraps the value and returns the inner [`PathBuf`].
+    ///
+    /// # Panic
+    ///
+    /// It panics if the value is not a path.
     pub fn path(self) -> PathBuf {
         match self {
             Self::Path(p) => p,
@@ -49,10 +135,54 @@ impl ArgValue {
     }
 }
 
+/// Name of an argument. It contains both short and/or long version of the argument.
+///
+/// You can either use this enum or its shorthand macro [`arg`]. This macro contains both short
+/// and/or long versions of the argument. Two arguments with the same short and/or long version
+/// will be treated as equal (for example `ArgName::Both { short: 'h', long: "help" } ==
+/// ArgName::Short('h')` is `true`). When initializing a [`Command`] with the [`CommandBuilder`] the
+/// generic type can be anything, but it will be turned into [`String`] once built with [`CommandBuilder::build`]
+/// or when turned into a [`SubCommand`].
 #[derive(Eq, Clone, Debug)]
 pub enum ArgName<T: Into<String> + Clone + Eq> {
+    /// Represents a short argument.
+    ///
+    /// It is formed by a dash and a character on the command line (e.g. `-h`).
+    /// The dash is omitted in the enum's value.
+    /// When turned into a string this enum recreates the argument.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use tiny_args::ArgName;
+    /// assert_eq!(ArgName::Short::<String>('h').to_string(), "-h");
+    /// ```
     Short(char),
+
+    /// Represents a long argument.
+    ///
+    /// It is formed by two dashes and a string on the command line (e.g. `--help`).
+    /// The dashes are omitted in the enum's value.
+    /// When turned into a string this enum recreates the argument.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use tiny_args::ArgName;
+    /// assert_eq!(ArgName::Long("help").to_string(), "--help");
+    /// ```
     Long(T),
+
+    /// Represents both a long and a short argument.
+    ///
+    /// When turned into a string this enum prints both arguments.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use tiny_args::ArgName;
+    /// assert_eq!(ArgName::Both { short: 'h', long: "help" }.to_string(), "-h, --help");
+    /// ```
     Both { short: char, long: T },
 }
 
@@ -103,6 +233,9 @@ impl<T: Into<String> + Clone + Eq> fmt::Display for ArgName<T> {
     }
 }
 
+/// A struct containing all the information of an argument.
+///
+/// This struct should not be available until [`Command`] has been parsed.
 #[derive(Clone)]
 pub struct Arg<T: Into<String> + Clone + Eq> {
     argname: ArgName<T>,
@@ -120,17 +253,25 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
             description,
         }
     }
-
+    
+    /// [`ArgType`] of this argument.
     pub fn argtype(&self) -> ArgType {
         self.argtype.clone()
     }
-
+    
+    /// [`ArgValue`] of this argument.
+    ///
+    /// # Panic
+    ///
+    /// This function panics if the value is [`None`], but this should never happen since
+    /// [`Arg`] is available only after [`Command`] has been parsed.
     pub fn value(&self) -> ArgValue {
         self.argvalue
             .clone()
             .expect("Tried to access the value of an uninitialized argument.")
     }
-
+    
+    /// Return the description of this argument.
     pub fn description(&self) -> String {
         self.description.clone().into()
     }
@@ -194,7 +335,7 @@ impl ArgList<String> {
         self.args.len()
     }
 
-    pub fn get<T: Into<String> + Clone + Eq>(&self, argname: ArgName<T>) -> Option<Arg<String>> {
+    pub fn get(&self, argname: ArgName<&str>) -> Option<Arg<String>> {
         let argname = argname.into_string();
         for arg in &self.args {
             if arg.argname == argname {

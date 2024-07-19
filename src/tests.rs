@@ -22,48 +22,22 @@ mod tests {
     #[should_panic]
     fn test_command_fail() {
         Command::create("test", "A really cool failing test")
-            .arg(ArgName::Short('V'), ArgType::Flag, "Program's version")
-            .arg(
-                ArgName::Long("path"),
-                ArgType::Path,
-                "Insert a path to blow it away",
-            )
-            .arg(
-                ArgName::Both {
-                    short: 'h',
-                    long: "help",
-                },
-                ArgType::Flag,
-                "Show this help",
-            )
-            .arg(ArgName::Long("help"), ArgType::Path, "Oopsie")
+            .arg(arg!(-V), ArgType::Flag, "Program's version")
+            .arg(arg!(--path), ArgType::Path, "Insert a path to blow it away")
+            .arg(arg!(-h, --help), ArgType::Flag, "Show this help")
+            .arg(arg!(--help), ArgType::Path, "Oopsie")
             .build();
     }
 
     fn test_command() -> SubCommand {
         Command::create("test", "A really cool test")
-            .arg(ArgName::Short('V'), ArgType::Flag, "Program's version")
-            .arg(ArgName::Long("path"), ArgType::Path, "Insert a path")
-            .arg(ArgName::Long("num"), ArgType::Num, "Insert a number")
-            .arg(ArgName::Long("float"), ArgType::Float, "Insert a float")
-            .arg(
-                ArgName::Long("idk"),
-                ArgType::String,
-                "Just insert something",
-            )
-            .arg(
-                ArgName::Long("idk2"),
-                ArgType::String,
-                "Just insert something again",
-            )
-            .arg(
-                ArgName::Both {
-                    short: 'h',
-                    long: "help",
-                },
-                ArgType::Flag,
-                "Show this help",
-            )
+            .arg(arg!(-V), ArgType::Flag, "Program's version")
+            .arg(arg!(--path), ArgType::Path, "Insert a path")
+            .arg(arg!(--num), ArgType::Num, "Insert a number")
+            .arg(arg!(--float), ArgType::Float, "Insert a float")
+            .arg(arg!(--idk), ArgType::String, "Just insert something")
+            .arg(arg!(--idk2), ArgType::String, "Just insert something again")
+            .arg(arg!(-h, --help), ArgType::Flag, "Show this help")
             .author(env!("CARGO_PKG_AUTHORS"))
             .version(env!("CARGO_PKG_VERSION"))
             .license(env!("CARGO_PKG_LICENSE"))
@@ -74,11 +48,7 @@ mod tests {
     #[should_panic]
     fn test_subcmd_fail() {
         Command::create("testception", "A really failed test inception")
-            .arg(
-                ArgName::Long("idk"),
-                ArgType::String,
-                "Just insert something",
-            )
+            .arg(arg!(--idk), ArgType::String, "Just insert something")
             .subcommand(test_command())
             .subcommand(test_command())
             .author(env!("CARGO_PKG_AUTHORS"))
@@ -90,11 +60,7 @@ mod tests {
     #[test]
     fn test_subcmd() {
         let cmd = Command::create("testception", "A really good test inception")
-            .arg(
-                ArgName::Long("idk"),
-                ArgType::String,
-                "Just insert something",
-            )
+            .arg(arg!(--idk), ArgType::String, "Just insert something")
             .subcommand(test_command())
             .author(env!("CARGO_PKG_AUTHORS"))
             .version(env!("CARGO_PKG_VERSION"))
@@ -138,50 +104,22 @@ mod tests {
             "hiii hello".into(),
         ];
         let parsed = cmd.parse_from(input).unwrap();
+        assert_eq!(parsed.args.get(arg!(--num)).unwrap().value().num(), 6);
         assert_eq!(
-            parsed.args.get(ArgName::Long("num")).unwrap().value().num(),
-            6
-        );
-        assert_eq!(
-            parsed
-                .args
-                .get(ArgName::Long("float"))
-                .unwrap()
-                .value()
-                .float(),
+            parsed.args.get(arg!(--float)).unwrap().value().float(),
             3.1415
         );
         assert_eq!(
-            parsed
-                .args
-                .get(ArgName::Long("path"))
-                .unwrap()
-                .value()
-                .path(),
+            parsed.args.get(arg!(--path)).unwrap().value().path(),
             PathBuf::from("/some/path")
         );
         assert_eq!(
-            parsed
-                .args
-                .get(ArgName::Long("idk"))
-                .unwrap()
-                .value()
-                .string(),
+            parsed.args.get(arg!(--idk)).unwrap().value().string(),
             "hiii hello"
         );
-        assert!(parsed
-            .args
-            .get(ArgName::Short::<char>('V'))
-            .unwrap()
-            .argvalue
-            .is_some());
-        assert!(parsed
-            .args
-            .get(ArgName::Short::<char>('h'))
-            .unwrap()
-            .argvalue
-            .is_some());
-        assert!(parsed.args.get(ArgName::Long("idk2")).is_none());
+        assert!(parsed.args.get(arg!(-V)).unwrap().argvalue.is_some());
+        assert!(parsed.args.get(arg!(-h)).unwrap().argvalue.is_some());
+        assert!(parsed.args.get(arg!(--idk2)).is_none());
     }
 
     #[test]
@@ -204,7 +142,7 @@ mod tests {
         let input: Vec<String> = vec!["test-program".into(), "-num".into(), "6".into()];
         cmd.parse_from(input).unwrap();
     }
-    
+
     #[test]
     #[should_panic]
     fn test_bad_input3() {
@@ -216,28 +154,20 @@ mod tests {
     #[test]
     fn test_tabbing() {
         let cmd = Command::create("tabbing", "Tests tabbing")
+            .arg(arg!(--aaaaaaa), ArgType::Flag, "testestetstestestest")
+            .arg(arg!(--aaaaaaaaaaa), ArgType::Flag, "testestetstestestest")
             .arg(
-                ArgName::Long("aaaaaaa"),
+                arg!(--aaaaaaaaaaaaaaa),
                 ArgType::Flag,
                 "testestetstestestest",
             )
             .arg(
-                ArgName::Long("aaaaaaaaaaa"),
+                arg!(--aaaaaaaaaaaaaaaaaaa),
                 ArgType::Flag,
                 "testestetstestestest",
             )
             .arg(
-                ArgName::Long("aaaaaaaaaaaaaaa"),
-                ArgType::Flag,
-                "testestetstestestest",
-            )
-            .arg(
-                ArgName::Long("aaaaaaaaaaaaaaaaaaa"),
-                ArgType::Flag,
-                "testestetstestestest",
-            )
-            .arg(
-                ArgName::Long("aaaaaaaaaaaaaaaaaaaaaaaa"),
+                arg!(--aaaaaaaaaaaaaaaaaaaaaaaa),
                 ArgType::Flag,
                 "testestetstestestest",
             )
