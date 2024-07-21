@@ -1,5 +1,5 @@
 #![crate_name = "tiny_args"]
-//#![warn(missing_docs)]
+#![warn(missing_docs)]
 
 //! # What is this?
 //!
@@ -56,15 +56,50 @@ pub enum ArgType {
     /// A [`f64`].
     Float,
 
-    /// A [`PathBuf`]
+    /// A [`PathBuf`].
     Path,
 
     /// A normal flag, does not contain any value.
     Flag,
 }
 
-/// Arguments' values.
+/// The values of a parsed argument.
+///
 /// Accessible after the command line has been parsed with [`Command::parse`] or [`Command::parse_from`].
+/// Each value can be unwrapped with their respective function:
+///
+/// ```rust
+/// # use tiny_args::*;
+/// let parsed = Command::create("myapp", "This is my cool app!")
+///        .arg(arg!(-s), ArgType::String, "Insert a string.")
+///        .build()
+///        .parse()
+///        .unwrap();
+///
+/// if let Some(arg) = parsed.args.get(arg!(-p)) {
+///     println!("String is: {}", arg.value().string());
+/// }
+/// ```
+///
+/// If you want to unwrap the values with pattern matching instead of their respective functions (which could panic),
+/// you can simply use pattern matching:
+///
+/// ```rust
+/// # use tiny_args::*;
+/// let parsed = Command::create("myapp", "This is my cool app!")
+///        .arg(arg!(-p), ArgType::Path, "Insert a path.")
+///        .build()
+///        .parse()
+///        .unwrap();
+///
+/// if let Some(path) = parsed.args.get(arg!(-p)) {
+///     if let ArgValue::Path(_pathbuf) = path.value() {
+///         println!("-p contains a path!");
+///     } else {
+///         println!("-p does not contain a path.");
+///     }
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub enum ArgValue {
     /// See [`ArgValue::string`]
@@ -80,7 +115,7 @@ pub enum ArgValue {
     Path(PathBuf),
 
     /// Flags do not carry any value.
-    /// You can see if they were activated by checking if the argument exists in the argument's
+    /// You can see if they were inputted by checking if the argument exists in the argument's
     /// list after the command line has been parsed.
     Flag,
 }
@@ -183,7 +218,13 @@ pub enum ArgName<T: Into<String> + Clone + Eq> {
     /// # use tiny_args::ArgName;
     /// assert_eq!(ArgName::Both { short: 'h', long: "help" }.to_string(), "-h, --help");
     /// ```
-    Both { short: char, long: T },
+    Both { 
+        /// Short argument's name.
+        short: char,
+        
+        /// Long argument's name.
+        long: T
+    },
 }
 
 impl<T: Into<String> + Clone + Eq> ArgName<T> {
@@ -292,6 +333,10 @@ impl Arg<String> {
     }
 }
 
+/// A list of arguments.
+///
+/// This list is accessible after command line arguments have been parsed.
+/// You can access specific arguments with [`ArgList::get`]
 #[derive(Clone)]
 pub struct ArgList<T: Into<String> + Clone + Eq> {
     args: Vec<Arg<T>>,
@@ -327,14 +372,18 @@ impl<T: Into<String> + Clone + Eq> ArgList<T> {
 }
 
 impl ArgList<String> {
+    /// Checks if the argument list is empty.
     pub fn is_empty(&self) -> bool {
         self.args.is_empty()
     }
-
+    
+    /// Returns the length of the argument's list.
     pub fn len(&self) -> usize {
         self.args.len()
     }
-
+    
+    /// Returns a given argument by its [`ArgName`].
+    /// If the argument is not found it returns [`None`]
     pub fn get(&self, argname: ArgName<&str>) -> Option<Arg<String>> {
         let argname = argname.into_string();
         for arg in &self.args {
@@ -356,6 +405,26 @@ impl ArgList<String> {
     }
 }
 
+/// Struct that builds the [`Command`].
+///
+/// This struct is returned by [`Command::create`] and is used to build the [`Command`].
+///
+/// # Example
+/// 
+/// ```rust
+/// # use tiny_args::*;
+/// let cmd = Command::create("myapp", "This is my cool app.")
+///     .author("Me!")
+///     .license("MY-LICENSE")
+///     .version("0.1.0")
+///     .arg(arg!(-h, --help), ArgType::Flag, "Shows this help.")
+///     .subcommand(
+///         Command::create("subcmd", "This is a subcommand.")
+///             .arg(arg!(-p, --path), ArgType::Path, "Insert a path.")
+///             .into()
+///     )
+///     .build();
+/// ```
 pub struct CommandBuilder<T: Into<String> + Clone + Eq> {
     name: T,
     description: T,
@@ -367,14 +436,32 @@ pub struct CommandBuilder<T: Into<String> + Clone + Eq> {
     parents: Vec<String>,
 }
 
+/// A [`CommandBuilder`] instance that can be fed into [`CommandBuilder::subcommand`].
+///
+/// This is simply an instance of [`CommandBuilder`] whose internal generic strings have been
+/// turned into [`String`]. It can be be built by using [`CommandBuilder::into`] on any [`CommandBuilder`].
 pub type SubCommand = CommandBuilder<String>;
 
 impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
+    /// Specifies a new argument.
+    /// 
+    /// # Example:
+    ///
+    /// ```rust
+    /// # use tiny_args::*; 
+    /// let cmd = Command::create("myapp", "This is my cool app.")
+    ///     .arg(arg!(-h, --help), ArgType::Flag, "Shows this help.")
+    ///     .build();
+    /// ```
     pub fn arg(mut self, argname: ArgName<T>, argtype: ArgType, description: T) -> Self {
         self.args.insert(Arg::new(argname, argtype, description));
         self
     }
-
+    
+    /// Specifies a new subcommand.
+    ///
+    /// `subcmd` must be a [`SubCommand`] ([`CommandBuilder<String>`]). It can be built by running
+    /// [`CommandBuilder::into`] on any [`CommandBuilder`].
     pub fn subcommand(mut self, subcmd: SubCommand) -> Self {
         if self.subcommands.iter().any(|s| s.name == subcmd.name) {
             panic!("Subcommand '{}' already exists.", subcmd.name);
@@ -384,17 +471,23 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
         self.subcommands.push(subcmd.build());
         self
     }
-
+    
+    /// Specifies the version of the program.
+    /// It will appear on the help page ([`ParsedCommand::help`]).
     pub fn version(mut self, version: T) -> Self {
         self.version = Some(version);
         self
     }
-
+    
+    /// Specifies the author of the program.
+    /// It will appear on the help page ([`ParsedCommand::help`]). 
     pub fn author(mut self, author: T) -> Self {
         self.author = Some(author);
         self
     }
 
+    /// Specifies the license of the program.
+    /// It will appear on the help page ([`ParsedCommand::help`]). 
     pub fn license(mut self, license: T) -> Self {
         self.license = Some(license);
         self
@@ -405,7 +498,11 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
         parents.push(parent);
         self.parents = parents;
     }
-
+    
+    /// Transforms the struct into a [`SubCommand`] ([`CommandBuilder<String>`]), which can be fed
+    /// into [`CommandBuilder::subcommand`].
+    ///
+    /// It consumes the struct and turns the internal strings into [`String`].
     pub fn into(self) -> SubCommand {
         CommandBuilder {
             name: self.name.into(),
@@ -418,7 +515,9 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
             parents: self.parents,
         }
     }
-
+    
+    /// It finishes the command building and returns a [`Command`], which can then be used to parse
+    /// the command line, with [`Command::parse`].
     pub fn build(self) -> Command {
         let cmd = self.into();
         Command {
@@ -432,8 +531,14 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
     }
 }
 
+/// A struct that represents a command line.
+/// 
+/// It can be used to parse the command line to get the parsed arguments of the command line.
+/// See [`Command::parse`] or [`Command::parse_from`].
+///
+/// To build this struct see [`Command::create`].
 pub struct Command {
-    pub help: String,
+    help: String,
     name: String,
     description: String,
     args: ArgList<String>,
@@ -442,6 +547,11 @@ pub struct Command {
 }
 
 impl Command {
+    /// This function creates a new [`CommandBuilder`].
+    ///
+    /// `name` and `description` can be any type that can be turned into a [`String`] that
+    /// implements [`Clone`] and [`Eq`]. This type will also be used with all the strings needed to
+    /// build the [`Command`].
     pub fn create<T: Into<String> + Clone + Eq>(name: T, description: T) -> CommandBuilder<T> {
         CommandBuilder {
             name,
@@ -454,19 +564,45 @@ impl Command {
             parents: Vec::new(),
         }
     }
-
+    
+    /// Parses the command line arguments given by [`env::args`].
+    ///
+    /// # Returns
+    ///
+    /// This function returns a [`Result`] that contains the [`ParsedCommand`].
+    /// In case of error, a [`String`] will be returned containing an error message that can be
+    /// displayed to the user.
     pub fn parse(&self) -> Result<ParsedCommand, String> {
         self.parse_from(env::args().collect())
     }
 
+    /// Parses command line arguments from a custom [`Vec<String>`].
+    ///
+    /// # Returns
+    ///
+    /// This function returns a [`Result`] that contains the [`ParsedCommand`].
+    /// In case of error, a [`String`] will be returned containing an error message that can be
+    /// displayed to the user.
     pub fn parse_from(&self, args: Vec<String>) -> Result<ParsedCommand, String> {
         parser::parse(self, args)
     }
 }
 
+/// A struct representing a parsed command.
 #[non_exhaustive]
 pub struct ParsedCommand {
+    /// The help page of the parsed command.
+    ///
+    /// It can be displayed to the user, for example when the `--help` flag is used.
     pub help: String,
+
+    /// The list of parsed arguments.
+    ///
+    /// You can access the values of each argument value inputted by the user.
     pub args: ArgList<String>,
+
+    /// The parent commands if this is a subcommand.
+    ///
+    /// If this is the root of the program the [`Vec`] is empty.
     pub parents: Vec<String>,
 }
