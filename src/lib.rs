@@ -4,10 +4,10 @@
 //! # What is this?
 //!
 //! This is a bare-bones parser for CLI commands made for Tiny Cloud.
-//! It was made in place of [clap](https://docs.rs/clap/latest/clap/) because
-//! tcloud plugins need a way to configure and execute subcommands from different crates.
-//! It can be used for other projects too, but keep it mind that it is made for a specific project,
-//! so if you need some particular features that are not supposed to be here you should use some other crate.
+//! It was made in place of [clap](https://docs.rs/clap/latest/clap/) because Tiny Cloud
+//! needs a way to configure and execute subcommands from different crates.
+//! This crate can be used for other projects too, but keep it mind that it was made for a specific project.
+//! If you need some particular features that are not supposed to be here you should use some other crate.
 //!
 //! # Example
 //!
@@ -15,13 +15,19 @@
 //! use tiny_args::*;
 //!
 //! let parsed = Command::create("myapp", "This is my cool app!")
-//!        .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
-//!        .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
-//!        .arg(arg!(--path), ArgType::Path, "Path to something.")
-//!        .author("Me!")
-//!        .build()
-//!        .parse()
-//!        .unwrap(); // It would be better to show the error to the user instead of panicking
+//!         .author("Me!")
+//!         .license("SOME-LICENSE")
+//!         .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
+//!         .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
+//!         .arg(arg!(--path), ArgType::Path, "Path to something.")
+//!         .subcommand(
+//!             Command::create("subcmd", "This is a subcommand.")
+//!                 .arg(arg!(-p, --path), ArgType::Path, "Insert a path.")
+//!                 .into()
+//!         )
+//!         .build()
+//!         .parse()
+//!         .unwrap(); // It would be better to show the error to the user instead of panicking
 //!
 //! if parsed.args.get(arg!(-h)).is_some() {
 //!     println!("{}", parsed.help);
@@ -44,7 +50,7 @@ mod tests;
 mod macros;
 
 /// Arguments' value types.
-/// Used when configuring the command line to specify what values each argument contains.
+/// Used when configuring the command line to specify what values each argument should contain.
 #[derive(Clone, Debug)]
 pub enum ArgType {
     /// A [`String`].
@@ -66,7 +72,8 @@ pub enum ArgType {
 /// The values of a parsed argument.
 ///
 /// Accessible after the command line has been parsed with [`Command::parse`] or [`Command::parse_from`].
-/// Each value can be unwrapped with their respective function:
+///
+/// Each value can be unwrapped with their respective function (panics if the value is not correct):
 ///
 /// ```rust
 /// # use tiny_args::*;
@@ -81,7 +88,7 @@ pub enum ArgType {
 /// }
 /// ```
 ///
-/// If you want to unwrap the values with pattern matching instead of their respective functions (which could panic),
+/// If you want to unwrap the values with pattern matching instead of their respective functions (to avoid panics),
 /// you can simply use pattern matching:
 ///
 /// ```rust
@@ -125,7 +132,7 @@ impl ArgValue {
     ///
     /// # Panic
     ///
-    /// It panics if the value is not a string.
+    /// Panics if the value is not a string.
     pub fn string(self) -> String {
         match self {
             Self::String(s) => s,
@@ -137,7 +144,7 @@ impl ArgValue {
     ///
     /// # Panic
     ///
-    /// It panics if the value is not a number.
+    /// Panics if the value is not a number.
     pub fn num(self) -> i64 {
         match self {
             Self::Num(n) => n,
@@ -149,7 +156,7 @@ impl ArgValue {
     ///
     /// # Panic
     ///
-    /// It panics if the value is not a float.
+    /// Panics if the value is not a float.
     pub fn float(self) -> f64 {
         match self {
             Self::Float(f) => f,
@@ -161,7 +168,7 @@ impl ArgValue {
     ///
     /// # Panic
     ///
-    /// It panics if the value is not a path.
+    /// Panics if the value is not a path.
     pub fn path(self) -> PathBuf {
         match self {
             Self::Path(p) => p,
@@ -170,14 +177,20 @@ impl ArgValue {
     }
 }
 
-/// Name of an argument. It contains both short and/or long version of the argument.
+/// Name of an argument. It contains both short and/or long names of the argument.
 ///
 /// You can either use this enum or its shorthand macro [`arg`]. This macro contains both short
-/// and/or long versions of the argument. Two arguments with the same short and/or long version
-/// will be treated as equal (for example `ArgName::Both { short: 'h', long: "help" } ==
-/// ArgName::Short('h')` is `true`). When initializing a [`Command`] with the [`CommandBuilder`] the
-/// generic type can be anything, but it will be turned into [`String`] once built with [`CommandBuilder::build`]
-/// or when turned into a [`SubCommand`].
+/// and/or long names of the argument. Two arguments with the same name will be treated as equal.
+/// For example:
+///
+/// ```rust
+/// # use tiny_args::*;
+/// assert_eq!(ArgName::Both { short: 'h', long: "help" }, ArgName::Short('h'));
+/// assert_eq!(ArgName::Both { short: 'h', long: "help" }, ArgName::Long("help"));
+/// ```
+/// 
+/// When initializing a [`Command`] with the [`CommandBuilder`] the generic type can be anything, 
+/// but it will be turned into [`String`] once built with [`CommandBuilder::build`] or when turned into a [`SubCommand`].
 #[derive(Eq, Clone, Debug)]
 pub enum ArgName<T: Into<String> + Clone + Eq> {
     /// Represents a short argument.
@@ -304,7 +317,7 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
     ///
     /// # Panic
     ///
-    /// This function panics if the value is [`None`], but this should never happen since
+    /// Panics if the value is [`None`], but this should never happen since
     /// [`Arg`] is available only after [`Command`] has been parsed.
     pub fn value(&self) -> ArgValue {
         self.argvalue
@@ -312,7 +325,7 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
             .expect("Tried to access the value of an uninitialized argument.")
     }
     
-    /// Return the description of this argument.
+    /// Returns the description of this argument.
     pub fn description(&self) -> String {
         self.description.clone().into()
     }
@@ -335,8 +348,8 @@ impl Arg<String> {
 
 /// A list of arguments.
 ///
-/// This list is accessible after command line arguments have been parsed.
-/// You can access specific arguments with [`ArgList::get`]
+/// This list is accessible only after the command line arguments have been parsed.
+/// You can access specific arguments with [`ArgList::get`].
 #[derive(Clone)]
 pub struct ArgList<T: Into<String> + Clone + Eq> {
     args: Vec<Arg<T>>,
@@ -453,15 +466,21 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
     ///     .arg(arg!(-h, --help), ArgType::Flag, "Shows this help.")
     ///     .build();
     /// ```
+    ///
+    /// # Panic
+    ///
+    /// Panics if an argument with the same name was already inputted.
     pub fn arg(mut self, argname: ArgName<T>, argtype: ArgType, description: T) -> Self {
         self.args.insert(Arg::new(argname, argtype, description));
         self
     }
     
     /// Specifies a new subcommand.
+    /// `subcmd` must be a [`SubCommand`] ([`CommandBuilder<String>`]). It can be built by using [`CommandBuilder::into`].
     ///
-    /// `subcmd` must be a [`SubCommand`] ([`CommandBuilder<String>`]). It can be built by running
-    /// [`CommandBuilder::into`] on any [`CommandBuilder`].
+    /// # Panic
+    /// 
+    /// Panics if a subcommand with the same name was already inputted.
     pub fn subcommand(mut self, subcmd: SubCommand) -> Self {
         if self.subcommands.iter().any(|s| s.name == subcmd.name) {
             panic!("Subcommand '{}' already exists.", subcmd.name);
@@ -517,7 +536,7 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
     }
     
     /// It finishes the command building and returns a [`Command`], which can then be used to parse
-    /// the command line, with [`Command::parse`].
+    /// the command line with [`Command::parse`].
     pub fn build(self) -> Command {
         let cmd = self.into();
         Command {
@@ -592,17 +611,14 @@ impl Command {
 #[non_exhaustive]
 pub struct ParsedCommand {
     /// The help page of the parsed command.
-    ///
     /// It can be displayed to the user, for example when the `--help` flag is used.
     pub help: String,
 
     /// The list of parsed arguments.
-    ///
     /// You can access the values of each argument value inputted by the user.
     pub args: ArgList<String>,
 
     /// The parent commands if this is a subcommand.
-    ///
     /// If this is the root of the program the [`Vec`] is empty.
     pub parents: Vec<String>,
 }

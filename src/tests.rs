@@ -117,8 +117,8 @@ mod tests {
             parsed.args.get(arg!(--idk)).unwrap().value().string(),
             "hiii hello"
         );
-        assert!(parsed.args.get(arg!(-V)).unwrap().argvalue.is_some());
-        assert!(parsed.args.get(arg!(-h)).unwrap().argvalue.is_some());
+        assert!(parsed.args.get(arg!(-V)).is_some());
+        assert!(parsed.args.get(arg!(-h)).is_some());
         assert!(parsed.args.get(arg!(--idk2)).is_none());
     }
 
