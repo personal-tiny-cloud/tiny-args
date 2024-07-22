@@ -6,7 +6,7 @@ use crate::ArgName;
 /// Using this macro to create [`ArgName`]s is equivalent to using the enum builder.
 ///
 /// # Example
-/// 
+///
 /// ```rust
 /// # use tiny_args::*;
 /// assert_eq!(ArgName::Both { short: 'h', long: "help" }, arg!(-h, --help));

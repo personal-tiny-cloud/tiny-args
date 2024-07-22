@@ -61,7 +61,7 @@ mod tests {
     fn test_subcmd() {
         let cmd = Command::create("testception", "A really good test inception")
             .arg(arg!(--idk), ArgType::String, "Just insert something")
-            .subcommand(test_command())
+            .subcommand(test_command().color(false))
             .author(env!("CARGO_PKG_AUTHORS"))
             .version(env!("CARGO_PKG_VERSION"))
             .license(env!("CARGO_PKG_LICENSE"))
@@ -148,6 +148,20 @@ mod tests {
     fn test_bad_input3() {
         let cmd = test_command().build();
         let input: Vec<String> = vec!["test-program".into(), "num".into(), "6".into()];
+        cmd.parse_from(input).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_bad_input4() {
+        let cmd = test_command().build();
+        let input: Vec<String> = vec![
+            "test-program".into(),
+            "--num".into(),
+            "6".into(),
+            "--num".into(),
+            "6".into(),
+        ];
         cmd.parse_from(input).unwrap();
     }
 

@@ -3,7 +3,7 @@
 
 //! # What is this?
 //!
-//! This is a bare-bones parser for CLI commands made for Tiny Cloud.
+//! This is a bare-bones parser for CLI commands made for [Tiny Cloud](https://github.com/personal-tiny-cloud/tiny-cloud).
 //! It was made in place of [clap](https://docs.rs/clap/latest/clap/) because Tiny Cloud
 //! needs a way to configure and execute subcommands from different crates.
 //! This crate can be used for other projects too, but keep it mind that it was made for a specific project.
@@ -88,8 +88,7 @@ pub enum ArgType {
 /// }
 /// ```
 ///
-/// If you want to unwrap the values with pattern matching instead of their respective functions (to avoid panics),
-/// you can simply use pattern matching:
+/// Or if you want you can simply use pattern matching (to avoid panics):
 ///
 /// ```rust
 /// # use tiny_args::*;
@@ -188,8 +187,8 @@ impl ArgValue {
 /// assert_eq!(ArgName::Both { short: 'h', long: "help" }, ArgName::Short('h'));
 /// assert_eq!(ArgName::Both { short: 'h', long: "help" }, ArgName::Long("help"));
 /// ```
-/// 
-/// When initializing a [`Command`] with the [`CommandBuilder`] the generic type can be anything, 
+///
+/// When initializing a [`Command`] with the [`CommandBuilder`] the generic type can be anything,
 /// but it will be turned into [`String`] once built with [`CommandBuilder::build`] or when turned into a [`SubCommand`].
 #[derive(Eq, Clone, Debug)]
 pub enum ArgName<T: Into<String> + Clone + Eq> {
@@ -231,12 +230,12 @@ pub enum ArgName<T: Into<String> + Clone + Eq> {
     /// # use tiny_args::ArgName;
     /// assert_eq!(ArgName::Both { short: 'h', long: "help" }.to_string(), "-h, --help");
     /// ```
-    Both { 
+    Both {
         /// Short argument's name.
         short: char,
-        
+
         /// Long argument's name.
-        long: T
+        long: T,
     },
 }
 
@@ -307,12 +306,12 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
             description,
         }
     }
-    
+
     /// [`ArgType`] of this argument.
     pub fn argtype(&self) -> ArgType {
         self.argtype.clone()
     }
-    
+
     /// [`ArgValue`] of this argument.
     ///
     /// # Panic
@@ -324,7 +323,7 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
             .clone()
             .expect("Tried to access the value of an uninitialized argument.")
     }
-    
+
     /// Returns the description of this argument.
     pub fn description(&self) -> String {
         self.description.clone().into()
@@ -341,8 +340,35 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
 }
 
 impl Arg<String> {
-    fn init(&mut self, argvalue: ArgValue) {
-        self.argvalue = Some(argvalue);
+    fn init(&mut self, input: &mut Vec<String>) -> Result<(), String> {
+        if self.argvalue.is_none() {
+            match self.argtype {
+                ArgType::String => self.argvalue = Some(ArgValue::String(input.remove(0))),
+                ArgType::Num => {
+                    self.argvalue = Some(ArgValue::Num(input.remove(0).parse().map_err(|e| {
+                        format!("'{}' value's must be a valid number: {e}", self.argname)
+                    })?))
+                }
+                ArgType::Float => {
+                    self.argvalue = Some(ArgValue::Float(input.remove(0).parse().map_err(|e| {
+                        format!(
+                            "'{}' value's must be a valid float number: {e}",
+                            self.argname
+                        )
+                    })?))
+                }
+                ArgType::Path => {
+                    self.argvalue = Some(ArgValue::Path(PathBuf::from(input.remove(0))))
+                }
+                ArgType::Flag => self.argvalue = Some(ArgValue::Flag),
+            }
+            Ok(())
+        } else {
+            Err(format!(
+                "The flag '{}' was repeated twice, you cannot repeat the same argument.",
+                self.argname
+            ))
+        }
     }
 }
 
@@ -389,12 +415,12 @@ impl ArgList<String> {
     pub fn is_empty(&self) -> bool {
         self.args.is_empty()
     }
-    
+
     /// Returns the length of the argument's list.
     pub fn len(&self) -> usize {
         self.args.len()
     }
-    
+
     /// Returns a given argument by its [`ArgName`].
     /// If the argument is not found it returns [`None`]
     pub fn get(&self, argname: ArgName<&str>) -> Option<Arg<String>> {
@@ -407,14 +433,18 @@ impl ArgList<String> {
         None
     }
 
-    fn init_arg(&mut self, argname: &ArgName<String>, argvalue: ArgValue) {
+    fn init_arg(
+        &mut self,
+        argname: &ArgName<String>,
+        input: &mut Vec<String>,
+    ) -> Result<(), String> {
         for arg in &mut self.args {
             if arg.argname == *argname {
-                arg.init(argvalue);
-                return;
+                arg.init(input)?;
+                return Ok(());
             }
         }
-        panic!("Tried to initialize {argname} but it does not exist");
+        Err(format!("'{argname}' is not a valid argument."))
     }
 }
 
@@ -423,7 +453,7 @@ impl ArgList<String> {
 /// This struct is returned by [`Command::create`] and is used to build the [`Command`].
 ///
 /// # Example
-/// 
+///
 /// ```rust
 /// # use tiny_args::*;
 /// let cmd = Command::create("myapp", "This is my cool app.")
@@ -447,6 +477,7 @@ pub struct CommandBuilder<T: Into<String> + Clone + Eq> {
     args: ArgList<T>,
     subcommands: Vec<Command>,
     parents: Vec<String>,
+    color: bool,
 }
 
 /// A [`CommandBuilder`] instance that can be fed into [`CommandBuilder::subcommand`].
@@ -457,11 +488,11 @@ pub type SubCommand = CommandBuilder<String>;
 
 impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
     /// Specifies a new argument.
-    /// 
+    ///
     /// # Example:
     ///
     /// ```rust
-    /// # use tiny_args::*; 
+    /// # use tiny_args::*;
     /// let cmd = Command::create("myapp", "This is my cool app.")
     ///     .arg(arg!(-h, --help), ArgType::Flag, "Shows this help.")
     ///     .build();
@@ -474,12 +505,12 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
         self.args.insert(Arg::new(argname, argtype, description));
         self
     }
-    
+
     /// Specifies a new subcommand.
     /// `subcmd` must be a [`SubCommand`] ([`CommandBuilder<String>`]). It can be built by using [`CommandBuilder::into`].
     ///
     /// # Panic
-    /// 
+    ///
     /// Panics if a subcommand with the same name was already inputted.
     pub fn subcommand(mut self, subcmd: SubCommand) -> Self {
         if self.subcommands.iter().any(|s| s.name == subcmd.name) {
@@ -490,25 +521,32 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
         self.subcommands.push(subcmd.build());
         self
     }
-    
+
     /// Specifies the version of the program.
     /// It will appear on the help page ([`ParsedCommand::help`]).
     pub fn version(mut self, version: T) -> Self {
         self.version = Some(version);
         self
     }
-    
+
     /// Specifies the author of the program.
-    /// It will appear on the help page ([`ParsedCommand::help`]). 
+    /// It will appear on the help page ([`ParsedCommand::help`]).
     pub fn author(mut self, author: T) -> Self {
         self.author = Some(author);
         self
     }
 
     /// Specifies the license of the program.
-    /// It will appear on the help page ([`ParsedCommand::help`]). 
+    /// It will appear on the help page ([`ParsedCommand::help`]).
     pub fn license(mut self, license: T) -> Self {
         self.license = Some(license);
+        self
+    }
+
+    /// Specifies whether or not the help page should be colored.
+    /// By default it is colored.
+    pub fn color(mut self, color: bool) -> Self {
+        self.color = color;
         self
     }
 
@@ -517,7 +555,7 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
         parents.push(parent);
         self.parents = parents;
     }
-    
+
     /// Transforms the struct into a [`SubCommand`] ([`CommandBuilder<String>`]), which can be fed
     /// into [`CommandBuilder::subcommand`].
     ///
@@ -532,9 +570,10 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
             args: self.args.into(),
             subcommands: self.subcommands,
             parents: self.parents,
+            color: self.color,
         }
     }
-    
+
     /// It finishes the command building and returns a [`Command`], which can then be used to parse
     /// the command line with [`Command::parse`].
     pub fn build(self) -> Command {
@@ -551,7 +590,7 @@ impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
 }
 
 /// A struct that represents a command line.
-/// 
+///
 /// It can be used to parse the command line to get the parsed arguments of the command line.
 /// See [`Command::parse`] or [`Command::parse_from`].
 ///
@@ -581,9 +620,10 @@ impl Command {
             args: ArgList::new(),
             subcommands: Vec::new(),
             parents: Vec::new(),
+            color: true,
         }
     }
-    
+
     /// Parses the command line arguments given by [`env::args`].
     ///
     /// # Returns
