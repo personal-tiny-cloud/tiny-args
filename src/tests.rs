@@ -19,6 +19,29 @@ mod tests {
     }
 
     #[test]
+    fn test_arg_macro() {
+        assert_eq!(
+            arg! { -h, --help },
+            ArgName::Both {
+                short: 'h',
+                long: "help"
+            }
+        );
+        assert_eq!(arg! { -h, --long-help }, ArgName::Long("long-help"));
+        assert_eq!(
+            arg! { -h, --long-long-long-help },
+            ArgName::Long("long-long-long-help")
+        );
+        assert_eq!(arg!(-h), ArgName::Short::<&str>('h'));
+        assert_eq!(arg!(--help), ArgName::Long("help"));
+        assert_eq!(arg! { --long-help }, ArgName::Long("long-help"));
+        assert_eq!(
+            arg! { --long-long-long-help },
+            ArgName::Long("long-long-long-help")
+        );
+    }
+
+    #[test]
     #[should_panic]
     fn test_command_fail() {
         Command::create("test", "A really cool failing test")

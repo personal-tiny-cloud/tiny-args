@@ -13,6 +13,17 @@ use crate::ArgName;
 /// assert_eq!(ArgName::Short::<&str>('h'), arg!(-h));
 /// assert_eq!(ArgName::Long("help"), arg!(--help));
 /// ```
+///
+/// You can also specify long arguments with multiple words separated by dashes.
+/// When doing this, it is recommended to use curly brackets (`arg! { }`) to keep
+/// rustfmt from formatting the arguments.
+///
+/// # Example
+///
+/// ```rust
+/// # use tiny_args::*;
+/// assert_eq!(arg! { --long-help }, ArgName::Long("long-help"));
+/// ```
 #[macro_export]
 macro_rules! arg {
     (-$short:ident, --$long:ident) => {{
@@ -20,8 +31,18 @@ macro_rules! arg {
             short: stringify!($short)
                 .chars()
                 .next()
-                .expect("Tried to use an empty string as a short argument"),
+                .unwrap(),
             long: stringify!($long),
+        }
+    }};
+
+    (-$short:ident, --$first:ident$(-$long:ident)+) => {{
+        ArgName::Both {
+            short: stringify!($short)
+                .chars()
+                .next()
+                .unwrap(),
+            long: concat!(stringify!($first), $("-", stringify!($long),)+),
         }
     }};
 
@@ -30,11 +51,15 @@ macro_rules! arg {
             stringify!($short)
                 .chars()
                 .next()
-                .expect("Tried to use an empty string as a short argument"),
+                .unwrap()
         )
     }};
 
     (--$long:ident) => {{
         ArgName::Long(stringify!($long))
+    }};
+
+    (--$first:ident$(-$long:ident)+) => {{
+        ArgName::Long(concat!(stringify!($first), $("-", stringify!($long),)+))
     }};
 }
