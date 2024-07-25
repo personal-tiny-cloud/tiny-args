@@ -27,6 +27,9 @@ fn args(
             return Err(format!("'{input}' is not an argument nor a value."));
         }
     }
+    if let Some(argname) = &argnameopt {
+        argslist.init_arg(argname, &mut inputargs)?;
+    }
     Ok(argslist.filter())
 }
 

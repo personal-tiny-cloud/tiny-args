@@ -146,6 +146,26 @@ mod tests {
     }
 
     #[test]
+    fn test_single_arg1() {
+        let cmd = test_command().build();
+        let input: Vec<String> = vec!["test-program".into(), "--help".into()];
+        let parsed = cmd.parse_from(input).unwrap();
+        assert!(parsed.args.get(arg!(--help)).is_some());
+        assert!(parsed.args.get(arg!(-h)).is_some());
+    }
+    
+    #[test]
+    fn test_single_arg2() {
+        let cmd = test_command().build();
+        let input: Vec<String> = vec!["test-program".into(), "--float".into(), "3.1415".into()];
+        let parsed = cmd.parse_from(input).unwrap();
+        assert_eq!(
+            parsed.args.get(arg!(--float)).unwrap().value().float(),
+            3.1415
+        );
+    }
+
+    #[test]
     #[should_panic]
     fn test_bad_input1() {
         let cmd = test_command().build();
