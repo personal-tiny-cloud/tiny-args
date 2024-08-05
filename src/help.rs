@@ -30,6 +30,7 @@ fn subcommands_normal(cmd: &CommandBuilder<String>) -> String {
             tabs = tabs(subcmd.name.len())
         ));
     }
+    buf.push('\n');
     buf
 }
 
@@ -99,6 +100,7 @@ fn subcommands_color(cmd: &CommandBuilder<String>) -> String {
             tabs = tabs(subcmd.name.len())
         ));
     }
+    buf.push('\n');
     buf
 }
 

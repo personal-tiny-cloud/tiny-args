@@ -54,6 +54,7 @@ pub fn parse(root: &Command, input: Vec<String>) -> Result<ParsedCommand, String
     input.remove(0);
     let command = traverse(root, &mut input)?;
     Ok(ParsedCommand {
+        name: command.name.clone(),
         help: command.help.clone(),
         args: args(command.args.clone(), input)?,
         parents: command.parents.clone(),

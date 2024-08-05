@@ -1,6 +1,5 @@
 #![crate_name = "tiny_args"]
 #![warn(missing_docs)]
-
 //! # What is this?
 //!
 //! This is a bare-bones parser for CLI commands made for [Tiny Cloud](https://github.com/personal-tiny-cloud/tiny-cloud).
@@ -650,6 +649,9 @@ impl Command {
 /// A struct representing a parsed command.
 #[non_exhaustive]
 pub struct ParsedCommand {
+    /// Name of the command or subcommand.
+    pub name: String,
+
     /// The help page of the parsed command.
     /// It can be displayed to the user, for example when the `--help` flag is used.
     pub help: String,
