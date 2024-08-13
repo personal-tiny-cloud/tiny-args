@@ -16,10 +16,9 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-// 
+//
 // Email: hex0x0000@protonmail.com
 
-#![crate_name = "tiny_args"]
 #![warn(missing_docs)]
 //! # What is this?
 //!
@@ -49,7 +48,7 @@
 //!         .parse()
 //!         .unwrap(); // It would be better to show the error to the user instead of panicking
 //!
-//! if parsed.args.get(arg!(-h)).is_some() {
+//! if parsed.args.contains(arg!(-h)) {
 //!     println!("{}", parsed.help);
 //!     return;
 //! }
@@ -451,6 +450,31 @@ impl ArgList<String> {
             }
         }
         None
+    }
+
+    /// Checks if there is an argument in the arguments list.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tiny_args::*;
+    ///
+    /// let parsed = Command::create("myapp", "This is my cool app!")
+    ///         .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
+    ///         .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
+    ///         .arg(arg!(--path), ArgType::Path, "Path to something.")
+    ///         .build()
+    ///         .parse()
+    ///         .unwrap();
+    ///
+    /// if parsed.args.contains(arg!(-h)) {
+    ///     println!("{}", parsed.help);
+    ///     return;
+    /// }
+    /// ```
+    pub fn contains(&self, argname: ArgName<&str>) -> bool {
+        let argname = argname.into_string();
+        self.args.iter().any(|arg| arg.argname == argname)
     }
 
     fn init_arg(

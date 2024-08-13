@@ -16,7 +16,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-// 
+//
 // Email: hex0x0000@protonmail.com
 
 #[cfg(test)]
@@ -161,9 +161,9 @@ mod tests {
             parsed.args.get(arg!(--idk)).unwrap().value().string(),
             "hiii hello"
         );
-        assert!(parsed.args.get(arg!(-V)).is_some());
-        assert!(parsed.args.get(arg!(-h)).is_some());
-        assert!(parsed.args.get(arg!(--idk2)).is_none());
+        assert!(parsed.args.contains(arg!(-V)));
+        assert!(parsed.args.contains(arg!(-h)));
+        assert!(!parsed.args.contains(arg!(--idk2)));
     }
 
     #[test]
@@ -171,10 +171,10 @@ mod tests {
         let cmd = test_command().build();
         let input: Vec<String> = vec!["test-program".into(), "--help".into()];
         let parsed = cmd.parse_from(input).unwrap();
-        assert!(parsed.args.get(arg!(--help)).is_some());
-        assert!(parsed.args.get(arg!(-h)).is_some());
+        assert!(parsed.args.contains(arg!(--help)));
+        assert!(parsed.args.contains(arg!(-h)));
     }
-    
+
     #[test]
     fn test_single_arg2() {
         let cmd = test_command().build();

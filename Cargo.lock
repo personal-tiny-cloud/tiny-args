@@ -10,7 +10,7 @@ checksum = "caff54706df99d2a78a5a4e3455ff45448d81ef1bb63c22cd14052ca0e993a3f"
 
 [[package]]
 name = "tiny-args"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "owo-colors",
 ]

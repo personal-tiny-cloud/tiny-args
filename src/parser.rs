@@ -16,7 +16,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-// 
+//
 // Email: hex0x0000@protonmail.com
 
 use crate::*;
@@ -29,17 +29,17 @@ fn args(
     while let Some(input) = inputargs.first() {
         if let Some(argname) = &argnameopt {
             argslist.init_arg(argname, &mut inputargs)?;
-            argnameopt = None;
+            argnameopt.take();
         } else if input.starts_with("--") {
             if let Some(input) = input.get(2..) {
-                argnameopt = Some(ArgName::Long(input.into()));
+                argnameopt.replace(ArgName::Long(input.into()));
                 inputargs.remove(0);
             } else {
                 return Err(format!("'{input}' is not a valid long argument."));
             }
         } else if input.starts_with('-') {
             if let Some(input) = input.chars().nth(1) {
-                argnameopt = Some(ArgName::Short(input));
+                argnameopt.replace(ArgName::Short(input));
                 inputargs.remove(0);
             } else {
                 return Err(format!("'{input}' is not a valid short argument."));

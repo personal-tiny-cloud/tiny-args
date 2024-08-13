@@ -26,7 +26,7 @@ let parsed = Command::create("myapp", "This is my cool app!")
         .parse()
         .unwrap(); // It would be better to show the error to the user instead of panicking
 
-if parsed.args.get(arg!(-h)).is_some() {
+if parsed.args.contains(arg!(-h)) {
     println!("{}", parsed.help);
     return;
 }
