@@ -54,7 +54,7 @@
 //! }
 //!
 //! if let Some(path) = parsed.args.get(arg!(--path)) {
-//!     let mut pathbuf = path.value().path();
+//!     let mut pathbuf = path.value().path().clone();
 //!     pathbuf.push("some/other/path");
 //!     println!("My path: {path}", path = pathbuf.into_os_string().into_string().unwrap());
 //! }
@@ -151,9 +151,9 @@ impl ArgValue {
     /// # Panic
     ///
     /// Panics if the value is not a string.
-    pub fn string(self) -> String {
+    pub fn string(&self) -> &str {
         match self {
-            Self::String(s) => s,
+            Self::String(s) => &s,
             _ => panic!("This argument's value is not a string"),
         }
     }
@@ -163,9 +163,9 @@ impl ArgValue {
     /// # Panic
     ///
     /// Panics if the value is not a number.
-    pub fn num(self) -> i64 {
+    pub fn num(&self) -> i64 {
         match self {
-            Self::Num(n) => n,
+            Self::Num(n) => *n,
             _ => panic!("This argument's value is not a number"),
         }
     }
@@ -175,9 +175,9 @@ impl ArgValue {
     /// # Panic
     ///
     /// Panics if the value is not a float.
-    pub fn float(self) -> f64 {
+    pub fn float(&self) -> f64 {
         match self {
-            Self::Float(f) => f,
+            Self::Float(f) => *f,
             _ => panic!("This argument's value is not a float"),
         }
     }
@@ -187,7 +187,7 @@ impl ArgValue {
     /// # Panic
     ///
     /// Panics if the value is not a path.
-    pub fn path(self) -> PathBuf {
+    pub fn path(&self) -> &PathBuf {
         match self {
             Self::Path(p) => p,
             _ => panic!("This argument's value is not a path"),
@@ -327,8 +327,8 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
     }
 
     /// [`ArgType`] of this argument.
-    pub fn argtype(&self) -> ArgType {
-        self.argtype.clone()
+    pub fn argtype(&self) -> &ArgType {
+        &self.argtype
     }
 
     /// [`ArgValue`] of this argument.
@@ -337,15 +337,15 @@ impl<T: Into<String> + Clone + Eq> Arg<T> {
     ///
     /// Panics if the value is [`None`], but this should never happen since
     /// [`Arg`] is available only after [`Command`] has been parsed.
-    pub fn value(&self) -> ArgValue {
+    pub fn value(&self) -> &ArgValue {
         self.argvalue
-            .clone()
+            .as_ref()
             .expect("Tried to access the value of an uninitialized argument.")
     }
 
     /// Returns the description of this argument.
-    pub fn description(&self) -> String {
-        self.description.clone().into()
+    pub fn description(&self) -> &T {
+        &self.description
     }
 
     fn into(self) -> Arg<String> {
@@ -442,11 +442,11 @@ impl ArgList<String> {
 
     /// Returns a given argument by its [`ArgName`].
     /// If the argument is not found it returns [`None`]
-    pub fn get(&self, argname: ArgName<&str>) -> Option<Arg<String>> {
+    pub fn get(&self, argname: ArgName<&str>) -> Option<&Arg<String>> {
         let argname = argname.into_string();
         for arg in &self.args {
             if arg.argname == argname {
-                return Some(arg.clone());
+                return Some(arg);
             }
         }
         None

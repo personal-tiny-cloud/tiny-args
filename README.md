@@ -32,7 +32,7 @@ if parsed.args.contains(arg!(-h)) {
 }
 
 if let Some(path) = parsed.args.get(arg!(--path)) {
-    let mut pathbuf = path.value().path();
+    let mut pathbuf = path.value().path().clone();
     pathbuf.push("some/other/path");
     println!("My path: {path}", path = pathbuf.into_os_string().into_string().unwrap());
 }

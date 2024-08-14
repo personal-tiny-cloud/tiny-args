@@ -127,6 +127,10 @@ mod tests {
                 .string(),
             "a b c"
         );
+        assert_eq!(
+            parsed.args.get(arg!(--idk2)).unwrap().description(),
+            "Just insert something again"
+        );
         assert!(parsed.help.starts_with("testception test"));
     }
 
@@ -154,7 +158,13 @@ mod tests {
             3.1415
         );
         assert_eq!(
-            parsed.args.get(arg!(--path)).unwrap().value().path(),
+            parsed
+                .args
+                .get(arg!(--path))
+                .unwrap()
+                .value()
+                .path()
+                .clone(),
             PathBuf::from("/some/path")
         );
         assert_eq!(
