@@ -21,11 +21,8 @@
 
 use crate::*;
 
-fn args(
-    mut argslist: ArgList<String>,
-    mut inputargs: Vec<String>,
-) -> Result<ArgList<String>, String> {
-    let mut argnameopt: Option<ArgName<String>> = None;
+fn args(mut argslist: ArgList, mut inputargs: Vec<String>) -> Result<ArgList, String> {
+    let mut argnameopt: Option<ArgName> = None;
     while let Some(input) = inputargs.first() {
         if let Some(argname) = &argnameopt {
             argslist.init_arg(argname, &mut inputargs)?;
@@ -51,16 +48,28 @@ fn args(
     if let Some(argname) = &argnameopt {
         argslist.init_arg(argname, &mut inputargs)?;
     }
-    Ok(argslist.filter())
+    Ok(argslist)
 }
 
-fn traverse<'a>(root: &'a Command, args: &mut Vec<String>) -> Result<&'a Command, String> {
+// NOTE: use Vec extract_if when it becomes stable
+fn extract(mut subcmds: Vec<Command>, name: &str) -> Option<Command> {
+    let mut i = 0;
+    while i < subcmds.len() {
+        if subcmds[i].name == name {
+            return Some(subcmds.remove(i));
+        }
+        i += 1;
+    }
+    None
+}
+
+fn traverse(root: Command, args: &mut Vec<String>) -> Result<Command, String> {
     let mut cmd = root;
     while let Some(arg) = args.first() {
         if arg.starts_with('-') {
             break;
         }
-        if let Some(found) = cmd.subcommands.iter().find(|&s| s.name == *arg) {
+        if let Some(found) = extract(cmd.subcommands, arg) {
             cmd = found;
             args.remove(0);
         } else {
@@ -70,14 +79,13 @@ fn traverse<'a>(root: &'a Command, args: &mut Vec<String>) -> Result<&'a Command
     Ok(cmd)
 }
 
-pub fn parse(root: &Command, input: Vec<String>) -> Result<ParsedCommand, String> {
-    let mut input = input;
+pub fn parse(root: Command, mut input: Vec<String>) -> Result<ParsedCommand, String> {
     input.remove(0);
     let command = traverse(root, &mut input)?;
     Ok(ParsedCommand {
-        name: command.name.clone(),
-        help: command.help.clone(),
-        args: args(command.args.clone(), input)?,
-        parents: command.parents.clone(),
+        name: command.name,
+        help: help::create(&command),
+        args: args(command.args, input)?,
+        parents: command.parents,
     })
 }

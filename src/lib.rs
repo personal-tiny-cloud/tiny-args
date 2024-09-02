@@ -19,7 +19,6 @@
 //
 // Email: hex0x0000@protonmail.com
 
-#![warn(missing_docs)]
 //! # What is this?
 //!
 //! This is a bare-bones parser for CLI commands made for [Tiny Cloud](https://github.com/personal-tiny-cloud/tiny-cloud).
@@ -35,182 +34,85 @@
 //!
 //! let parsed = Command::create("myapp", "This is my cool app!")
 //!         .author("Me!")
+//!         .version("0.1.0")
 //!         .license("SOME-LICENSE")
-//!         .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
-//!         .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
-//!         .arg(arg!(--path), ArgType::Path, "Path to something.")
+//!         .arg(arg!(-'h', --help), value!(), "Shows this help.")
+//!         .arg(arg! { -'s', --some-words }, value!(string), "Inserts some words.")
+//!         .arg(arg!(--path), value!(path, "/default/path"), "Specify a path to something.")
 //!         .subcommand(
 //!             Command::create("subcmd", "This is a subcommand.")
-//!                 .arg(arg!(-p, --path), ArgType::Path, "Insert a path.")
-//!                 .into()
+//!                 .arg(arg!(-'h', --help), value!(), "Shows this help.")
+//!                 .arg(arg!(-'n', --num), value!(num, 42), "Insert a number.")
 //!         )
-//!         .build()
 //!         .parse()
-//!         .unwrap(); // It would be better to show the error to the user instead of panicking
+//!         .unwrap(); // Show the error to the user instead of panicking!!!
 //!
-//! if parsed.args.contains(arg!(-h)) {
+//! if parsed.args.count(arg!(-'h')) > 0 {
 //!     println!("{}", parsed.help);
 //!     return;
 //! }
 //!
-//! if let Some(path) = parsed.args.get(arg!(--path)) {
-//!     let mut pathbuf = path.value().path().clone();
-//!     pathbuf.push("some/other/path");
-//!     println!("My path: {path}", path = pathbuf.into_os_string().into_string().unwrap());
+//! // Safe to unwrap since it has a default value.
+//! let path = parsed.args.get(arg!(--path)).path().unwrap();
+//! println!("Path to something: {}", path.display());
+//!
+//! if let Some(words) = parsed.args.get(arg!(-'s')).string() {
+//!     println!("Your words: {words}");
 //! }
 //! ```
 
+#![warn(missing_docs)]
+
 use std::{env, fmt, path::PathBuf};
+
+use smol_str::SmolStr;
 
 mod help;
 mod parser;
-mod tests;
 #[macro_use]
 mod macros;
+#[cfg(test)]
+mod tests;
 
-/// Arguments' value types.
-/// Used when configuring the command line to specify what values each argument should contain.
-#[derive(Clone, Debug)]
-pub enum ArgType {
-    /// A [`String`].
-    String,
-
-    /// An [`i64`].
-    Num,
-
-    /// A [`f64`].
-    Float,
-
-    /// A [`PathBuf`].
-    Path,
-
-    /// A normal flag, does not contain any value.
-    Flag,
-}
-
-/// The values of a parsed argument.
+/// The argument's values.
 ///
-/// Accessible after the command line has been parsed with [`Command::parse`] or [`Command::parse_from`].
+/// This enum is used during the initialization of the command to specify the argument's value type
+/// and a default value. (Use [`None`] to set no default value)
 ///
-/// Each value can be unwrapped with their respective function (panics if the value is not correct):
-///
-/// ```rust
-/// # use tiny_args::*;
-/// let parsed = Command::create("myapp", "This is my cool app!")
-///        .arg(arg!(-s), ArgType::String, "Insert a string.")
-///        .build()
-///        .parse()
-///        .unwrap();
-///
-/// if let Some(arg) = parsed.args.get(arg!(-p)) {
-///     println!("String is: {}", arg.value().string());
-/// }
-/// ```
-///
-/// Or if you want you can simply use pattern matching (to avoid panics):
-///
-/// ```rust
-/// # use tiny_args::*;
-/// let parsed = Command::create("myapp", "This is my cool app!")
-///        .arg(arg!(-p), ArgType::Path, "Insert a path.")
-///        .build()
-///        .parse()
-///        .unwrap();
-///
-/// if let Some(path) = parsed.args.get(arg!(-p)) {
-///     if let ArgValue::Path(_pathbuf) = path.value() {
-///         println!("-p contains a path!");
-///     } else {
-///         println!("-p does not contain a path.");
-///     }
-/// }
-/// ```
-#[derive(Clone, Debug)]
+/// You can either use the shorthand macro [`value`] or the enum's constructor to create it.
+#[derive(Clone, Debug, PartialEq)]
 pub enum ArgValue {
-    /// See [`ArgValue::string`]
-    String(String),
+    /// Carries a [`String`]
+    String(Option<String>),
 
-    /// See [`ArgValue::num`]
-    Num(i64),
+    /// Carries an [`i64`]
+    Num(Option<i64>),
 
-    /// See [`ArgValue::float`]
-    Float(f64),
+    /// Carries a [`f64`]
+    Float(Option<f64>),
 
-    /// See [`ArgValue::path`]
-    Path(PathBuf),
+    /// Carries a [`PathBuf`]
+    Path(Option<PathBuf>),
 
     /// Flags do not carry any value.
-    /// You can see if they were inputted by checking if the argument exists in the argument's
-    /// list after the command line has been parsed.
     Flag,
-}
-
-impl ArgValue {
-    /// Unwraps the value and returns the inner string.
-    ///
-    /// # Panic
-    ///
-    /// Panics if the value is not a string.
-    pub fn string(&self) -> &str {
-        match self {
-            Self::String(s) => &s,
-            _ => panic!("This argument's value is not a string"),
-        }
-    }
-
-    /// Unwraps the value and returns the inner [`i64`].
-    ///
-    /// # Panic
-    ///
-    /// Panics if the value is not a number.
-    pub fn num(&self) -> i64 {
-        match self {
-            Self::Num(n) => *n,
-            _ => panic!("This argument's value is not a number"),
-        }
-    }
-
-    /// Unwraps the value and returns the inner [`f64`].
-    ///
-    /// # Panic
-    ///
-    /// Panics if the value is not a float.
-    pub fn float(&self) -> f64 {
-        match self {
-            Self::Float(f) => *f,
-            _ => panic!("This argument's value is not a float"),
-        }
-    }
-
-    /// Unwraps the value and returns the inner [`PathBuf`].
-    ///
-    /// # Panic
-    ///
-    /// Panics if the value is not a path.
-    pub fn path(&self) -> &PathBuf {
-        match self {
-            Self::Path(p) => p,
-            _ => panic!("This argument's value is not a path"),
-        }
-    }
 }
 
 /// Name of an argument. It contains both short and/or long names of the argument.
 ///
-/// You can either use this enum or its shorthand macro [`arg`]. This macro contains both short
-/// and/or long names of the argument. Two arguments with the same name will be treated as equal.
+/// You can either use this enum's function or its shorthand macro [`arg`] to initialize it.
+/// This macro contains both short and/or long names of the argument. Two arguments with the
+/// same name will be treated as equal.
+///
 /// For example:
 ///
 /// ```rust
 /// # use tiny_args::*;
-/// assert_eq!(ArgName::Both { short: 'h', long: "help" }, ArgName::Short('h'));
-/// assert_eq!(ArgName::Both { short: 'h', long: "help" }, ArgName::Long("help"));
+/// assert_eq!(arg! { -'h', --help }, arg!(-'h'));
+/// assert_eq!(arg! { -'h', --help }, arg!(--help));
 /// ```
-///
-/// When initializing a [`Command`] with the [`CommandBuilder`] the generic type can be anything,
-/// but it will be turned into [`String`] once built with [`CommandBuilder::build`] or when turned into a [`SubCommand`].
 #[derive(Eq, Clone, Debug)]
-pub enum ArgName<T: Into<String> + Clone + Eq> {
+pub enum ArgName {
     /// Represents a short argument.
     ///
     /// It is formed by a dash and a character on the command line (e.g. `-h`).
@@ -221,7 +123,7 @@ pub enum ArgName<T: Into<String> + Clone + Eq> {
     ///
     /// ```rust
     /// # use tiny_args::ArgName;
-    /// assert_eq!(ArgName::Short::<String>('h').to_string(), "-h");
+    /// assert_eq!(ArgName::short('h').to_string(), "-h");
     /// ```
     Short(char),
 
@@ -235,9 +137,9 @@ pub enum ArgName<T: Into<String> + Clone + Eq> {
     ///
     /// ```rust
     /// # use tiny_args::ArgName;
-    /// assert_eq!(ArgName::Long("help").to_string(), "--help");
+    /// assert_eq!(ArgName::long("help").to_string(), "--help");
     /// ```
-    Long(T),
+    Long(SmolStr),
 
     /// Represents both a long and a short argument.
     ///
@@ -247,31 +149,60 @@ pub enum ArgName<T: Into<String> + Clone + Eq> {
     ///
     /// ```rust
     /// # use tiny_args::ArgName;
-    /// assert_eq!(ArgName::Both { short: 'h', long: "help" }.to_string(), "-h, --help");
+    /// assert_eq!(ArgName::both('h', "help").to_string(), "-h, --help");
     /// ```
     Both {
         /// Short argument's name.
         short: char,
 
         /// Long argument's name.
-        long: T,
+        long: SmolStr,
     },
 }
 
-impl<T: Into<String> + Clone + Eq> ArgName<T> {
-    fn into_string(self) -> ArgName<String> {
-        match self {
-            Self::Short(c) => ArgName::Short(c),
-            Self::Long(s) => ArgName::Long(s.into()),
-            Self::Both { short, long } => ArgName::Both {
-                short,
-                long: long.into(),
-            },
+impl ArgName {
+    /// Creates a new short [`ArgName`] from a char.
+    #[inline(always)]
+    pub fn short(name: char) -> Self {
+        Self::Short(name)
+    }
+
+    /// Creates a new long [`ArgName`].
+    #[inline(always)]
+    pub fn long(name: &str) -> Self {
+        Self::Long(SmolStr::from(name))
+    }
+
+    /// Creates a new long [`ArgName`] from a static string.
+    ///
+    /// Consider using the [`arg`] macro instead of this function.
+    #[inline(always)]
+    pub fn long_static(name: &'static str) -> Self {
+        Self::Long(SmolStr::new_static(name))
+    }
+
+    /// Creates a new [`ArgName`] with short and long options.
+    #[inline(always)]
+    pub fn both(short: char, long: &str) -> Self {
+        Self::Both {
+            short,
+            long: SmolStr::new(long),
+        }
+    }
+
+    /// Creates a new [`ArgName`] with short and long options from a static strings.
+    ///
+    /// Consider using the [`arg`] macro instead of this function.
+    #[inline(always)]
+    pub fn both_static(short: char, long: &'static str) -> Self {
+        Self::Both {
+            short,
+            long: SmolStr::new_static(long),
         }
     }
 }
 
-impl<T: Into<String> + Clone + Eq> PartialEq for ArgName<T> {
+impl PartialEq for ArgName {
     fn eq(&self, other: &Self) -> bool {
         match &self {
             Self::Short(s) => match *other {
@@ -293,13 +224,13 @@ impl<T: Into<String> + Clone + Eq> PartialEq for ArgName<T> {
     }
 }
 
-impl<T: Into<String> + Clone + Eq> fmt::Display for ArgName<T> {
+impl fmt::Display for ArgName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
             Self::Short(s) => write!(f, "-{s}"),
-            Self::Long(l) => write!(f, "--{}", Into::<String>::into(l.clone())),
+            Self::Long(l) => write!(f, "--{l}"),
             Self::Both { short, long } => {
-                write!(f, "-{short}, --{}", Into::<String>::into(long.clone()))
+                write!(f, "-{short}, --{long}")
             }
         }
     }
@@ -307,87 +238,110 @@ impl<T: Into<String> + Clone + Eq> fmt::Display for ArgName<T> {
 
 /// A struct containing all the information of an argument.
 ///
-/// This struct should not be available until [`Command`] has been parsed.
+/// This struct is not available until [`Command`] has been parsed.
+#[non_exhaustive]
 #[derive(Clone)]
-pub struct Arg<T: Into<String> + Clone + Eq> {
-    argname: ArgName<T>,
-    argtype: ArgType,
-    argvalue: Option<ArgValue>,
-    description: T,
+pub struct Arg {
+    /// Name of this argument.
+    pub argname: ArgName,
+
+    /// Value of this argument.
+    ///
+    /// If no default value was specified the internal value is [`None`].
+    pub argvalue: ArgValue,
+
+    /// Description of this argument
+    pub description: &'static str,
+
+    /// How many time this argument was called in the command line. (`0` if none)
+    ///
+    /// Note: arguments can be called multiple times, but if they carry a value only the last one
+    /// is saved. A counter is usually useful for some types of flags, or to check if the
+    /// argument was called in command line, instead of containing just the default value.
+    pub counter: usize,
 }
 
-impl<T: Into<String> + Clone + Eq> Arg<T> {
-    fn new(argname: ArgName<T>, argtype: ArgType, description: T) -> Self {
+impl Arg {
+    fn new(argname: ArgName, argvalue: ArgValue, description: &'static str) -> Self {
         Self {
             argname,
-            argtype,
-            argvalue: None,
+            argvalue,
             description,
+            counter: 0, // Counts how many times the argument has been called.
         }
     }
 
-    /// [`ArgType`] of this argument.
-    pub fn argtype(&self) -> &ArgType {
-        &self.argtype
-    }
-
-    /// [`ArgValue`] of this argument.
+    /// Returns the [`String`] value of the argument.
     ///
-    /// # Panic
-    ///
-    /// Panics if the value is [`None`], but this should never happen since
-    /// [`Arg`] is available only after [`Command`] has been parsed.
-    pub fn value(&self) -> &ArgValue {
-        self.argvalue
-            .as_ref()
-            .expect("Tried to access the value of an uninitialized argument.")
-    }
-
-    /// Returns the description of this argument.
-    pub fn description(&self) -> &T {
-        &self.description
-    }
-
-    fn into(self) -> Arg<String> {
-        Arg {
-            argname: self.argname.into_string(),
-            argtype: self.argtype,
-            argvalue: None,
-            description: self.description.into(),
-        }
-    }
-}
-
-impl Arg<String> {
-    fn init(&mut self, input: &mut Vec<String>) -> Result<(), String> {
-        if self.argvalue.is_none() {
-            match self.argtype {
-                ArgType::String => self.argvalue = Some(ArgValue::String(input.remove(0))),
-                ArgType::Num => {
-                    self.argvalue = Some(ArgValue::Num(input.remove(0).parse().map_err(|e| {
-                        format!("'{}' value's must be a valid number: {e}", self.argname)
-                    })?))
-                }
-                ArgType::Float => {
-                    self.argvalue = Some(ArgValue::Float(input.remove(0).parse().map_err(|e| {
-                        format!(
-                            "'{}' value's must be a valid float number: {e}",
-                            self.argname
-                        )
-                    })?))
-                }
-                ArgType::Path => {
-                    self.argvalue = Some(ArgValue::Path(PathBuf::from(input.remove(0))))
-                }
-                ArgType::Flag => self.argvalue = Some(ArgValue::Flag),
-            }
-            Ok(())
+    /// If no value (not even default) was specified or if it is not an [`ArgValue::String`]
+    /// it returns [`None`].
+    pub fn string(&self) -> Option<&str> {
+        if let ArgValue::String(Some(value)) = &self.argvalue {
+            Some(value)
         } else {
-            Err(format!(
-                "The flag '{}' was repeated twice, you cannot repeat the same argument.",
-                self.argname
-            ))
+            None
         }
+    }
+
+    /// Returns the [`i64`] value of the argument.
+    ///
+    /// If no value (not even default) was specified or if it is not an [`ArgValue::Num`]
+    /// it returns [`None`].
+    pub fn num(&self) -> Option<i64> {
+        if let ArgValue::Num(Some(value)) = self.argvalue {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the [`f64`] value of the argument.
+    ///
+    /// If no value (not even default) was specified or if it is not an [`ArgValue::Float`]
+    /// it returns [`None`].
+    pub fn float(&self) -> Option<f64> {
+        if let ArgValue::Float(Some(value)) = self.argvalue {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the [`PathBuf`] value of the argument.
+    ///
+    /// If no value (not even default) was specified or if it is not an [`ArgValue::String`]
+    /// it returns [`None`].
+    pub fn path(&self) -> Option<&PathBuf> {
+        if let ArgValue::Path(Some(value)) = &self.argvalue {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn init(&mut self, input: &mut Vec<String>) -> Result<(), String> {
+        match self.argvalue {
+            ArgValue::String(_) => self.argvalue = ArgValue::String(Some(input.remove(0))),
+            ArgValue::Num(_) => {
+                self.argvalue = ArgValue::Num(Some(input.remove(0).parse().map_err(|e| {
+                    format!("'{}' value's must be a valid number: {e}", self.argname)
+                })?))
+            }
+            ArgValue::Float(_) => {
+                self.argvalue = ArgValue::Float(Some(input.remove(0).parse().map_err(|e| {
+                    format!(
+                        "'{}' value's must be a valid float number: {e}",
+                        self.argname
+                    )
+                })?))
+            }
+            ArgValue::Path(_) => {
+                self.argvalue = ArgValue::Path(Some(PathBuf::from(input.remove(0))))
+            }
+            ArgValue::Flag => (),
+        }
+        self.counter += 1;
+        Ok(())
     }
 }
 
@@ -395,93 +349,73 @@ impl Arg<String> {
 ///
 /// This list is accessible only after the command line arguments have been parsed.
 /// You can access specific arguments with [`ArgList::get`].
-#[derive(Clone)]
-pub struct ArgList<T: Into<String> + Clone + Eq> {
-    args: Vec<Arg<T>>,
+#[repr(transparent)]
+pub struct ArgList {
+    args: Vec<Arg>,
 }
 
-impl<T: Into<String> + Clone + Eq> ArgList<T> {
+impl ArgList {
     fn new() -> Self {
         ArgList { args: Vec::new() }
     }
 
-    fn insert(&mut self, arg: Arg<T>) {
+    fn insert(&mut self, arg: Arg) {
         if self.args.iter().any(|a| a.argname == arg.argname) {
-            panic!("{} already exists", arg.argname);
+            panic!(
+                "The argument '{}' already exists in this command",
+                arg.argname
+            );
         }
         self.args.push(arg);
     }
 
-    fn filter(self) -> Self {
-        ArgList {
-            args: self
-                .args
-                .into_iter()
-                .filter(|a| a.argvalue.is_some())
-                .collect(),
-        }
+    /// Returns the inner [`Vec`] with parsed [`Arg`]s.
+    pub fn inner(&self) -> &Vec<Arg> {
+        &self.args
     }
 
-    fn into(self) -> ArgList<String> {
-        ArgList {
-            args: self.args.into_iter().map(|a| a.into()).collect(),
-        }
-    }
-}
-
-impl ArgList<String> {
-    /// Checks if the argument list is empty.
-    pub fn is_empty(&self) -> bool {
-        self.args.is_empty()
-    }
-
-    /// Returns the length of the argument's list.
-    pub fn len(&self) -> usize {
-        self.args.len()
+    /// Returns a given argument [`Arg`] by its [`ArgName`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given argument does not exist in the [`Command`].
+    pub fn get(&self, argname: ArgName) -> &Arg {
+        self.args
+            .iter()
+            .find(|&arg| arg.argname == argname)
+            .unwrap_or_else(|| panic!("Argument '{argname}' does not exist"))
     }
 
-    /// Returns a given argument by its [`ArgName`].
-    /// If the argument is not found it returns [`None`]
-    pub fn get(&self, argname: ArgName<&str>) -> Option<&Arg<String>> {
-        let argname = argname.into_string();
+    /// Returns a given argument [`Arg`] by its [`ArgName`].
+    ///
+    /// Does not panic but returns [`None`] if the argument does not exist in the [`Command`].
+    pub fn try_get(&self, argname: ArgName) -> Option<&Arg> {
+        self.args.iter().find(|&arg| arg.argname == argname)
+    }
+
+    /// Counts how many arguments were inserted by the user.
+    pub fn total_count(&self) -> usize {
+        let mut count: usize = 0;
         for arg in &self.args {
-            if arg.argname == argname {
-                return Some(arg);
-            }
+            count += arg.counter;
         }
-        None
+        count
     }
 
-    /// Checks if there is an argument in the arguments list.
+    /// Checks how many times the argument has been inserted (`0` if none). Usually useful for flags.
     ///
-    /// # Example
+    /// # Panics
     ///
-    /// ```rust
-    /// use tiny_args::*;
-    ///
-    /// let parsed = Command::create("myapp", "This is my cool app!")
-    ///         .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
-    ///         .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
-    ///         .arg(arg!(--path), ArgType::Path, "Path to something.")
-    ///         .build()
-    ///         .parse()
-    ///         .unwrap();
-    ///
-    /// if parsed.args.contains(arg!(-h)) {
-    ///     println!("{}", parsed.help);
-    ///     return;
-    /// }
-    /// ```
-    pub fn contains(&self, argname: ArgName<&str>) -> bool {
-        let argname = argname.into_string();
-        self.args.iter().any(|arg| arg.argname == argname)
+    /// Panics if the given `argname` does not exist in the [`Command`].
+    pub fn count(&self, argname: ArgName) -> usize {
+        self.args
+            .iter()
+            .find(|arg| arg.argname == argname)
+            .map(|arg| arg.counter)
+            .unwrap_or_else(|| panic!("Flag '{argname}' does not exist"))
     }
 
-    fn init_arg(
-        &mut self,
-        argname: &ArgName<String>,
-        input: &mut Vec<String>,
-    ) -> Result<(), String> {
+    fn init_arg(&mut self, argname: &ArgName, input: &mut Vec<String>) -> Result<(), String> {
         for arg in &mut self.args {
             if arg.argname == *argname {
                 arg.init(input)?;
@@ -492,170 +426,42 @@ impl ArgList<String> {
     }
 }
 
-/// Struct that builds the [`Command`].
+/// Builds the command line.
 ///
-/// This struct is returned by [`Command::create`] and is used to build the [`Command`].
+/// It can be then used to parse the command line to get the arguments inserted by the user.
+/// See [`Command::parse`] or [`Command::parse_from`].
 ///
 /// # Example
 ///
 /// ```rust
 /// # use tiny_args::*;
-/// let cmd = Command::create("myapp", "This is my cool app.")
+/// let parsed = Command::create("myapp", "This is my cool app.")
 ///     .author("Me!")
 ///     .license("MY-LICENSE")
 ///     .version("0.1.0")
-///     .arg(arg!(-h, --help), ArgType::Flag, "Shows this help.")
+///     .arg(arg!(-'h', --help), value!(), "Shows this help.")
 ///     .subcommand(
 ///         Command::create("subcmd", "This is a subcommand.")
-///             .arg(arg!(-p, --path), ArgType::Path, "Insert a path.")
-///             .into()
+///             .arg(arg!(-'p', --path), value!(path), "Insert a path.")
 ///     )
-///     .build();
+///     .parse();
 /// ```
-pub struct CommandBuilder<T: Into<String> + Clone + Eq> {
-    name: T,
-    description: T,
-    version: Option<T>,
-    author: Option<T>,
-    license: Option<T>,
-    args: ArgList<T>,
-    subcommands: Vec<Command>,
-    parents: Vec<String>,
-    color: bool,
-}
-
-/// A [`CommandBuilder`] instance that can be fed into [`CommandBuilder::subcommand`].
-///
-/// This is simply an instance of [`CommandBuilder`] whose internal generic strings have been
-/// turned into [`String`]. It can be be built by using [`CommandBuilder::into`] on any [`CommandBuilder`].
-pub type SubCommand = CommandBuilder<String>;
-
-impl<T: Into<String> + Clone + Eq> CommandBuilder<T> {
-    /// Specifies a new argument.
-    ///
-    /// # Example:
-    ///
-    /// ```rust
-    /// # use tiny_args::*;
-    /// let cmd = Command::create("myapp", "This is my cool app.")
-    ///     .arg(arg!(-h, --help), ArgType::Flag, "Shows this help.")
-    ///     .build();
-    /// ```
-    ///
-    /// # Panic
-    ///
-    /// Panics if an argument with the same name was already inputted.
-    pub fn arg(mut self, argname: ArgName<T>, argtype: ArgType, description: T) -> Self {
-        self.args.insert(Arg::new(argname, argtype, description));
-        self
-    }
-
-    /// Specifies a new subcommand.
-    /// `subcmd` must be a [`SubCommand`] ([`CommandBuilder<String>`]). It can be built by using [`CommandBuilder::into`].
-    ///
-    /// # Panic
-    ///
-    /// Panics if a subcommand with the same name was already inputted.
-    pub fn subcommand(mut self, subcmd: SubCommand) -> Self {
-        if self.subcommands.iter().any(|s| s.name == subcmd.name) {
-            panic!("Subcommand '{}' already exists.", subcmd.name);
-        }
-        let mut subcmd = subcmd;
-        subcmd.add_parents(self.parents.clone(), self.name.clone().into());
-        self.subcommands.push(subcmd.build());
-        self
-    }
-
-    /// Specifies the version of the program.
-    /// It will appear on the help page ([`ParsedCommand::help`]).
-    pub fn version(mut self, version: T) -> Self {
-        self.version = Some(version);
-        self
-    }
-
-    /// Specifies the author of the program.
-    /// It will appear on the help page ([`ParsedCommand::help`]).
-    pub fn author(mut self, author: T) -> Self {
-        self.author = Some(author);
-        self
-    }
-
-    /// Specifies the license of the program.
-    /// It will appear on the help page ([`ParsedCommand::help`]).
-    pub fn license(mut self, license: T) -> Self {
-        self.license = Some(license);
-        self
-    }
-
-    /// Specifies whether or not the help page should be colored.
-    /// By default it is colored.
-    pub fn color(mut self, color: bool) -> Self {
-        self.color = color;
-        self
-    }
-
-    fn add_parents(&mut self, grandparents: Vec<String>, parent: String) {
-        let mut parents = grandparents;
-        parents.push(parent);
-        self.parents = parents;
-    }
-
-    /// Transforms the struct into a [`SubCommand`] ([`CommandBuilder<String>`]), which can be fed
-    /// into [`CommandBuilder::subcommand`].
-    ///
-    /// It consumes the struct and turns the internal strings into [`String`].
-    pub fn into(self) -> SubCommand {
-        CommandBuilder {
-            name: self.name.into(),
-            description: self.description.into(),
-            version: self.version.map(|v| v.into()),
-            author: self.author.map(|a| a.into()),
-            license: self.license.map(|l| l.into()),
-            args: self.args.into(),
-            subcommands: self.subcommands,
-            parents: self.parents,
-            color: self.color,
-        }
-    }
-
-    /// It finishes the command building and returns a [`Command`], which can then be used to parse
-    /// the command line with [`Command::parse`].
-    pub fn build(self) -> Command {
-        let cmd = self.into();
-        Command {
-            help: help::create(&cmd),
-            name: cmd.name,
-            description: cmd.description,
-            args: cmd.args,
-            subcommands: cmd.subcommands,
-            parents: cmd.parents,
-        }
-    }
-}
-
-/// A struct that represents a command line.
-///
-/// It can be used to parse the command line to get the parsed arguments of the command line.
-/// See [`Command::parse`] or [`Command::parse_from`].
-///
-/// To build this struct see [`Command::create`].
 pub struct Command {
-    help: String,
-    name: String,
-    description: String,
-    args: ArgList<String>,
+    name: &'static str,
+    description: &'static str,
+    author: Option<&'static str>,
+    version: Option<&'static str>,
+    license: Option<&'static str>,
+    color: bool,
+    args: ArgList,
     subcommands: Vec<Command>,
-    parents: Vec<String>,
+    parents: Vec<&'static str>,
 }
 
 impl Command {
-    /// This function creates a new [`CommandBuilder`].
-    ///
-    /// `name` and `description` can be any type that can be turned into a [`String`] that
-    /// implements [`Clone`] and [`Eq`]. This type will also be used with all the strings needed to
-    /// build the [`Command`].
-    pub fn create<T: Into<String> + Clone + Eq>(name: T, description: T) -> CommandBuilder<T> {
-        CommandBuilder {
+    /// This function creates a new [`Command`].
+    pub fn create(name: &'static str, description: &'static str) -> Self {
+        Command {
             name,
             description,
             version: None,
@@ -668,6 +474,81 @@ impl Command {
         }
     }
 
+    /// Specifies a new argument.
+    ///
+    /// # Example:
+    ///
+    /// ```rust
+    /// # use tiny_args::*;
+    /// let cmd = Command::create("myapp", "This is my cool app.")
+    ///     .arg(arg!(-'h', --help), value!(), "Shows this help.");
+    /// ```
+    ///
+    /// # Panic
+    ///
+    /// Panics if an argument with the same name was already inputted.
+    #[inline]
+    pub fn arg(mut self, argname: ArgName, argtype: ArgValue, description: &'static str) -> Self {
+        self.args.insert(Arg::new(argname, argtype, description));
+        self
+    }
+
+    /// Specifies a new subcommand [`Command`].
+    ///
+    /// # Panic
+    ///
+    /// Panics if a subcommand with the same name was already inputted.
+    pub fn subcommand(mut self, subcmd: Command) -> Self {
+        if self.subcommands.iter().any(|s| s.name == subcmd.name) {
+            panic!("Subcommand '{}' already exists.", subcmd.name);
+        }
+        let mut subcmd = subcmd;
+        subcmd.add_parents(self.parents.clone(), self.name);
+        self.subcommands.push(subcmd);
+        self
+    }
+
+    /// Specifies the version of the program.
+    ///
+    /// It will appear on the help page ([`ParsedCommand::help`]).
+    #[inline]
+    pub fn version(mut self, version: &'static str) -> Self {
+        self.version = Some(version);
+        self
+    }
+
+    /// Specifies the author of the program.
+    ///
+    /// It will appear on the help page ([`ParsedCommand::help`]).
+    #[inline]
+    pub fn author(mut self, author: &'static str) -> Self {
+        self.author = Some(author);
+        self
+    }
+
+    /// Specifies the license of the program.
+    ///
+    /// It will appear on the help page ([`ParsedCommand::help`]).
+    #[inline]
+    pub fn license(mut self, license: &'static str) -> Self {
+        self.license = Some(license);
+        self
+    }
+
+    /// Specifies whether or not the help page should be colored.
+    /// By default it is colored.
+    #[inline]
+    pub fn color(mut self, color: bool) -> Self {
+        self.color = color;
+        self
+    }
+
+    fn add_parents(&mut self, grandparents: Vec<&'static str>, parent: &'static str) {
+        let mut parents = grandparents;
+        parents.push(parent);
+        self.parents = parents;
+    }
+
     /// Parses the command line arguments given by [`env::args`].
     ///
     /// # Returns
@@ -675,18 +556,20 @@ impl Command {
     /// This function returns a [`Result`] that contains the [`ParsedCommand`].
     /// In case of error, a [`String`] will be returned containing an error message that can be
     /// displayed to the user.
-    pub fn parse(&self) -> Result<ParsedCommand, String> {
+    #[inline]
+    pub fn parse(self) -> Result<ParsedCommand, String> {
         self.parse_from(env::args().collect())
     }
 
-    /// Parses command line arguments from a custom [`Vec<String>`].
+    /// Parses command line arguments from a custom [`Vec<String>`] list of arguments.
     ///
     /// # Returns
     ///
     /// This function returns a [`Result`] that contains the [`ParsedCommand`].
     /// In case of error, a [`String`] will be returned containing an error message that can be
     /// displayed to the user.
-    pub fn parse_from(&self, args: Vec<String>) -> Result<ParsedCommand, String> {
+    #[inline]
+    pub fn parse_from(self, args: Vec<String>) -> Result<ParsedCommand, String> {
         parser::parse(self, args)
     }
 }
@@ -695,17 +578,20 @@ impl Command {
 #[non_exhaustive]
 pub struct ParsedCommand {
     /// Name of the command or subcommand.
-    pub name: String,
+    pub name: &'static str,
 
     /// The help page of the parsed command.
+    ///
     /// It can be displayed to the user, for example when the `--help` flag is used.
     pub help: String,
 
     /// The list of parsed arguments.
+    ///
     /// You can access the values of each argument value inputted by the user.
-    pub args: ArgList<String>,
+    pub args: ArgList,
 
     /// The parent commands if this is a subcommand.
+    ///
     /// If this is the root of the program the [`Vec`] is empty.
-    pub parents: Vec<String>,
+    pub parents: Vec<&'static str>,
 }

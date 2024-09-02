@@ -19,251 +19,235 @@
 //
 // Email: hex0x0000@protonmail.com
 
-#[cfg(test)]
-mod tests {
-    use crate::*;
+use std::f64::consts::PI;
 
-    #[test]
-    fn arg_name_equality() {
-        let flag = ArgName::Both {
-            short: 'o',
-            long: "out",
-        };
-        let flag1 = ArgName::Short('o');
-        let flag2 = ArgName::Long("out".into());
-        assert_eq!(flag, flag);
-        assert_eq!(flag1, flag1);
-        assert_eq!(flag2, flag2);
-        assert_eq!(flag, flag1);
-        assert_eq!(flag, flag2);
-        assert_ne!(flag1, flag2);
-    }
+use crate::*;
 
-    #[test]
-    fn test_arg_macro() {
-        assert_eq!(
-            arg! { -h, --help },
-            ArgName::Both {
-                short: 'h',
-                long: "help"
-            }
-        );
-        assert_eq!(arg! { -h, --long-help }, ArgName::Long("long-help"));
-        assert_eq!(
-            arg! { -h, --long-long-long-help },
-            ArgName::Long("long-long-long-help")
-        );
-        assert_eq!(arg!(-h), ArgName::Short::<&str>('h'));
-        assert_eq!(arg!(--help), ArgName::Long("help"));
-        assert_eq!(arg! { --long-help }, ArgName::Long("long-help"));
-        assert_eq!(
-            arg! { --long-long-long-help },
-            ArgName::Long("long-long-long-help")
-        );
-    }
+#[test]
+fn arg_name_equality() {
+    let flag = ArgName::both('o', "out");
+    let flag1 = ArgName::short('o');
+    let flag2 = ArgName::long("out");
+    assert_eq!(flag, flag);
+    assert_eq!(flag1, flag1);
+    assert_eq!(flag2, flag2);
+    assert_eq!(flag, flag1);
+    assert_eq!(flag, flag2);
+    assert_ne!(flag1, flag2);
+}
 
-    #[test]
-    #[should_panic]
-    fn test_command_fail() {
-        Command::create("test", "A really cool failing test")
-            .arg(arg!(-V), ArgType::Flag, "Program's version")
-            .arg(arg!(--path), ArgType::Path, "Insert a path to blow it away")
-            .arg(arg!(-h, --help), ArgType::Flag, "Show this help")
-            .arg(arg!(--help), ArgType::Path, "Oopsie")
-            .build();
-    }
+#[test]
+fn test_arg_macro() {
+    assert_eq!(arg! { -'h', --help }, ArgName::both('h', "help"));
+    assert_eq!(arg! { -'h', --long-help }, ArgName::long("long-help"));
+    assert_eq!(
+        arg! { -'h', --long-long-long-help },
+        ArgName::long("long-long-long-help")
+    );
+    assert_eq!(arg!(-'h'), ArgName::short('h'));
+    assert_eq!(arg!(--help), ArgName::long("help"));
+    assert_eq!(arg! { --long-help }, ArgName::long("long-help"));
+    assert_eq!(
+        arg! { --long-long-long-help },
+        ArgName::long("long-long-long-help")
+    );
+}
 
-    fn test_command() -> SubCommand {
-        Command::create("test", "A really cool test")
-            .arg(arg!(-V), ArgType::Flag, "Program's version")
-            .arg(arg!(--path), ArgType::Path, "Insert a path")
-            .arg(arg!(--num), ArgType::Num, "Insert a number")
-            .arg(arg!(--float), ArgType::Float, "Insert a float")
-            .arg(arg!(--idk), ArgType::String, "Just insert something")
-            .arg(arg!(--idk2), ArgType::String, "Just insert something again")
-            .arg(arg!(-h, --help), ArgType::Flag, "Show this help")
-            .author(env!("CARGO_PKG_AUTHORS"))
-            .version(env!("CARGO_PKG_VERSION"))
-            .license(env!("CARGO_PKG_LICENSE"))
-            .into()
-    }
+#[test]
+fn test_value_macro() {
+    assert_eq!(value!(), ArgValue::Flag);
+    assert_eq!(value!(string), ArgValue::String(None));
+    assert_eq!(value!(num), ArgValue::Num(None));
+    assert_eq!(value!(float), ArgValue::Float(None));
+    assert_eq!(value!(path), ArgValue::Path(None));
+    assert_eq!(
+        value!(string, "a b c"),
+        ArgValue::String(Some("a b c".into()))
+    );
+    assert_eq!(value!(num, 2), ArgValue::Num(Some(2)));
+    assert_eq!(value!(float, 2.3), ArgValue::Float(Some(2.3)));
+    assert_eq!(value!(path, "/path"), ArgValue::Path(Some("/path".into())));
+}
 
-    #[test]
-    #[should_panic]
-    fn test_subcmd_fail() {
-        Command::create("testception", "A really failed test inception")
-            .arg(arg!(--idk), ArgType::String, "Just insert something")
-            .subcommand(test_command())
-            .subcommand(test_command())
-            .author(env!("CARGO_PKG_AUTHORS"))
-            .version(env!("CARGO_PKG_VERSION"))
-            .license(env!("CARGO_PKG_LICENSE"))
-            .build();
-    }
+#[test]
+#[should_panic]
+fn test_command_fail() {
+    Command::create("test", "A really cool failing test")
+        .arg(arg!(-'V'), value!(), "Program's version")
+        .arg(arg!(--path), value!(path), "Insert an example path")
+        .arg(arg!(-'h', --help), value!(), "Show this help")
+        .arg(arg!(--help), value!(), "Oopsie");
+}
 
-    #[test]
-    fn test_subcmd() {
-        let cmd = Command::create("testception", "A really good test inception")
-            .arg(arg!(--idk), ArgType::String, "Just insert something")
-            .subcommand(test_command().color(false))
-            .author(env!("CARGO_PKG_AUTHORS"))
-            .version(env!("CARGO_PKG_VERSION"))
-            .license(env!("CARGO_PKG_LICENSE"))
-            .build();
-        println!("{}", cmd.help);
-        let input: Vec<String> = vec![
-            "test-program".into(),
-            "test".into(),
-            "--idk2".into(),
-            "a b c".into(),
-        ];
-        let parsed = cmd.parse_from(input).unwrap();
-        assert_eq!(
-            parsed
-                .args
-                .get(ArgName::Long("idk2"))
-                .unwrap()
-                .value()
-                .string(),
-            "a b c"
-        );
-        assert_eq!(
-            parsed.args.get(arg!(--idk2)).unwrap().description(),
-            "Just insert something again"
-        );
-        assert!(parsed.help.starts_with("testception test"));
-    }
+fn test_command() -> Command {
+    Command::create("test", "A really cool test")
+        .arg(arg!(-'V'), value!(), "Program's version")
+        .arg(arg!(--path), value!(path, "/default/path"), "Insert a path")
+        .arg(arg!(--num), value!(num, 3), "Insert a number")
+        .arg(arg!(--float), value!(float), "Insert a float")
+        .arg(arg!(--idk), value!(string), "Just insert something")
+        .arg(
+            arg!(--idk2),
+            value!(string, "default value"),
+            "Just insert something again",
+        )
+        .arg(arg!(-'h', --help), value!(), "Show this help")
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .license(env!("CARGO_PKG_LICENSE"))
+}
 
-    #[test]
-    fn test_inputs() {
-        let cmd = test_command().build();
-        println!("{}", cmd.help);
-        let input: Vec<String> = vec![
-            "test-program".into(),
-            "--num".into(),
-            "6".into(),
-            "--float".into(),
-            "3.1415".into(),
-            "-V".into(),
-            "--path".into(),
-            "/some/path".into(),
-            "-h".into(),
-            "--idk".into(),
-            "hiii hello".into(),
-        ];
-        let parsed = cmd.parse_from(input).unwrap();
-        assert_eq!(parsed.args.get(arg!(--num)).unwrap().value().num(), 6);
-        assert_eq!(
-            parsed.args.get(arg!(--float)).unwrap().value().float(),
-            3.1415
-        );
-        assert_eq!(
-            parsed
-                .args
-                .get(arg!(--path))
-                .unwrap()
-                .value()
-                .path()
-                .clone(),
-            PathBuf::from("/some/path")
-        );
-        assert_eq!(
-            parsed.args.get(arg!(--idk)).unwrap().value().string(),
-            "hiii hello"
-        );
-        assert!(parsed.args.contains(arg!(-V)));
-        assert!(parsed.args.contains(arg!(-h)));
-        assert!(!parsed.args.contains(arg!(--idk2)));
-    }
+#[test]
+#[should_panic]
+fn test_subcmd_fail() {
+    Command::create("testception", "A really failed test inception")
+        .arg(arg!(--idk), value!(string), "Just insert something")
+        .subcommand(test_command())
+        .subcommand(test_command())
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .license(env!("CARGO_PKG_LICENSE"));
+}
 
-    #[test]
-    fn test_single_arg1() {
-        let cmd = test_command().build();
-        let input: Vec<String> = vec!["test-program".into(), "--help".into()];
-        let parsed = cmd.parse_from(input).unwrap();
-        assert!(parsed.args.contains(arg!(--help)));
-        assert!(parsed.args.contains(arg!(-h)));
-    }
+fn mkargs(vec: &[&str]) -> Vec<String> {
+    vec.iter().map(|&s| s.into()).collect()
+}
 
-    #[test]
-    fn test_single_arg2() {
-        let cmd = test_command().build();
-        let input: Vec<String> = vec!["test-program".into(), "--float".into(), "3.1415".into()];
-        let parsed = cmd.parse_from(input).unwrap();
-        assert_eq!(
-            parsed.args.get(arg!(--float)).unwrap().value().float(),
-            3.1415
-        );
-    }
+#[test]
+fn test_subcmd() {
+    let input = mkargs(&["test-program", "test", "--idk2", "a b c"]);
+    let parsed = Command::create("testception", "A really good test inception")
+        .arg(
+            arg!(--idk2),
+            value!(string, "a b c d"),
+            "Just insert something",
+        )
+        .subcommand(test_command().color(false))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .license(env!("CARGO_PKG_LICENSE"))
+        .parse_from(input)
+        .unwrap();
+    println!("{}", parsed.help);
+    assert_eq!(
+        parsed.args.get(ArgName::long("idk2")).string().unwrap(),
+        "a b c"
+    );
+    assert_eq!(
+        parsed.args.get(arg!(--idk2)).description,
+        "Just insert something again"
+    );
+    assert!(parsed.help.starts_with("testception test"));
+}
 
-    #[test]
-    #[should_panic]
-    fn test_bad_input1() {
-        let cmd = test_command().build();
-        let input: Vec<String> = vec![
-            "test-program".into(),
-            "--num".into(),
-            "6".into(),
-            "6".into(),
-        ];
-        cmd.parse_from(input).unwrap();
-    }
+#[test]
+fn test_inputs() {
+    let input = mkargs(&[
+        "test-program",
+        "--num",
+        "6",
+        "--float",
+        &PI.to_string(),
+        "-V",
+        "--path",
+        "/some/path",
+        "-h",
+        "-h",
+        "--idk",
+        "hiii hello",
+    ]);
+    let parsed = test_command().parse_from(input).unwrap();
+    println!("{}", parsed.help);
+    assert_eq!(parsed.args.get(arg!(--num)).num().unwrap(), 6);
+    assert_eq!(parsed.args.get(arg!(--float)).float().unwrap(), PI);
+    assert_eq!(
+        parsed.args.get(arg!(--path)).path().unwrap().clone(),
+        PathBuf::from("/some/path")
+    );
+    assert_eq!(parsed.args.get(arg!(--idk)).string().unwrap(), "hiii hello");
+    assert_eq!(parsed.args.count(arg!(-'V')), 1);
+    assert_eq!(parsed.args.count(arg!(-'h')), 2);
+    assert!(parsed.args.try_get(arg!(-'a')).is_none());
+}
 
-    #[test]
-    #[should_panic]
-    fn test_bad_input2() {
-        let cmd = test_command().build();
-        let input: Vec<String> = vec!["test-program".into(), "-num".into(), "6".into()];
-        cmd.parse_from(input).unwrap();
-    }
+#[test]
+fn test_multiple_flags() {
+    let input = mkargs(&[
+        "test-program",
+        "-h",
+        "-h",
+        "-h",
+        "--path",
+        "/path/a",
+        "--path",
+        "/path/b",
+    ]);
+    let parsed = test_command().parse_from(input).unwrap();
+    assert_eq!(parsed.args.count(arg!(-'h')), 3);
+    assert_eq!(parsed.args.count(arg!(--path)), 2);
+    assert_eq!(
+        parsed.args.get(arg!(--path)).path().unwrap().clone(),
+        PathBuf::from("/path/b")
+    );
+}
 
-    #[test]
-    #[should_panic]
-    fn test_bad_input3() {
-        let cmd = test_command().build();
-        let input: Vec<String> = vec!["test-program".into(), "num".into(), "6".into()];
-        cmd.parse_from(input).unwrap();
-    }
+#[test]
+fn test_single_arg1() {
+    let input = mkargs(&["test-program", "--help"]);
+    let parsed = test_command().parse_from(input).unwrap();
+    assert_eq!(parsed.args.count(arg!(--help)), 1);
+    assert_eq!(parsed.args.count(arg!(-'h')), 1);
+}
 
-    #[test]
-    #[should_panic]
-    fn test_bad_input4() {
-        let cmd = test_command().build();
-        let input: Vec<String> = vec![
-            "test-program".into(),
-            "--num".into(),
-            "6".into(),
-            "--num".into(),
-            "6".into(),
-        ];
-        cmd.parse_from(input).unwrap();
-    }
+#[test]
+fn test_single_arg2() {
+    let input = mkargs(&["test-program", "--float", &PI.to_string()]);
+    let parsed = test_command().parse_from(input).unwrap();
+    assert_eq!(parsed.args.get(arg!(--float)).float().unwrap(), PI);
+}
 
-    #[test]
-    fn test_tabbing() {
-        let cmd = Command::create("tabbing", "Tests tabbing")
-            .arg(arg!(--aaaaaaa), ArgType::Flag, "testestetstestestest")
-            .arg(arg!(--aaaaaaaaaaa), ArgType::Flag, "testestetstestestest")
-            .arg(
-                arg!(--aaaaaaaaaaaaaaa),
-                ArgType::Flag,
-                "testestetstestestest",
-            )
-            .arg(
-                arg!(--aaaaaaaaaaaaaaaaaaa),
-                ArgType::Flag,
-                "testestetstestestest",
-            )
-            .arg(
-                arg!(--aaaaaaaaaaaaaaaaaaaaaaaa),
-                ArgType::Flag,
-                "testestetstestestest",
-            )
-            .subcommand(Command::create("testsub", "testsub").into())
-            .subcommand(Command::create("testsubanan", "testsub").into())
-            .subcommand(Command::create("testsubaaaaaaaa", "testsub").into())
-            .subcommand(Command::create("testsubaaaaaaaaaaaaa", "testsub").into())
-            .build();
-        println!("{}", cmd.help);
-    }
+#[test]
+#[should_panic]
+fn test_bad_input1() {
+    let input = mkargs(&["test-program", "--num", "6", "6"]);
+    test_command().parse_from(input).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_bad_input2() {
+    let input = mkargs(&["test-program", "-num", "6"]);
+    test_command().parse_from(input).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_bad_input3() {
+    let input = mkargs(&["test-program", "num", "6"]);
+    test_command().parse_from(input).unwrap();
+}
+
+#[test]
+fn test_tabbing() {
+    let cmd = Command::create("tabbing", "Tests tabbing")
+        .arg(arg!(--aaaaaaa), value!(), "testestetstestestest")
+        .arg(arg!(--aaaaaaaaaaa), value!(), "testestetstestestest")
+        .arg(arg!(--aaaaaaaaaaaaaaa), value!(), "testestetstestestest")
+        .arg(
+            arg!(--aaaaaaaaaaaaaaaaaaa),
+            value!(),
+            "testestetstestestest",
+        )
+        .arg(
+            arg!(--aaaaaaaaaaaaaaaaaaaaaaaa),
+            value!(),
+            "testestetstestestest",
+        )
+        .subcommand(Command::create("testsub", "testsub"))
+        .subcommand(Command::create("testsubanan", "testsub"))
+        .subcommand(Command::create("testsubaaaaaaaa", "testsub"))
+        .subcommand(Command::create("testsubaaaaaaaaaaaaa", "testsub"))
+        .parse_from(vec!["test".into()])
+        .unwrap();
+    println!("{}", cmd.help);
 }

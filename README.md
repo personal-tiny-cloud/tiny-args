@@ -13,28 +13,30 @@ use tiny_args::*;
 
 let parsed = Command::create("myapp", "This is my cool app!")
         .author("Me!")
+        .version("0.1.0")
         .license("SOME-LICENSE")
-        .arg(arg!(-h, --help), ArgType::Flag, "Shows help.")
-        .arg(arg!(-V), ArgType::Flag, "Shows this project's version.")
-        .arg(arg!(--path), ArgType::Path, "Path to something.")
+        .arg(arg!(-'h', --help), value!(), "Shows this help.")
+        .arg(arg! { -'s', --some-words }, value!(string), "Inserts some words.")
+        .arg(arg!(--path), value!(path, "/default/path"), "Specify a path to something.")
         .subcommand(
             Command::create("subcmd", "This is a subcommand.")
-                .arg(arg!(-p, --path), ArgType::Path, "Insert a path.")
-                .into()
+                .arg(arg!(-'h', --help), value!(), "Shows this help.")
+                .arg(arg!(-'n', --num), value!(num, 42), "Insert a number.")
         )
-        .build()
         .parse()
-        .unwrap(); // It would be better to show the error to the user instead of panicking
+        .unwrap(); // Show the error to the user instead of panicking!!!
 
-if parsed.args.contains(arg!(-h)) {
+if parsed.args.count(arg!(-'h')) > 0 {
     println!("{}", parsed.help);
     return;
 }
 
-if let Some(path) = parsed.args.get(arg!(--path)) {
-    let mut pathbuf = path.value().path().clone();
-    pathbuf.push("some/other/path");
-    println!("My path: {path}", path = pathbuf.into_os_string().into_string().unwrap());
+// Safe to unwrap since it has a default value.
+let path = parsed.args.get(arg!(--path)).path().unwrap();
+println!("Path to something: {}", path.display());
+
+if let Some(words) = parsed.args.get(arg!(-'s')).string() {
+    println!("Your words: {words}");
 }
 ```
 

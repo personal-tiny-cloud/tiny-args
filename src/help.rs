@@ -30,7 +30,7 @@ fn tabs(len: usize) -> &'static str {
     }
 }
 
-fn license(cmd: &CommandBuilder<String>) -> String {
+fn license(cmd: &Command) -> String {
     if let Some(license) = &cmd.license {
         format!("Licensed under {license}")
     } else {
@@ -38,7 +38,7 @@ fn license(cmd: &CommandBuilder<String>) -> String {
     }
 }
 
-fn subcommands_normal(cmd: &CommandBuilder<String>) -> String {
+fn subcommands_normal(cmd: &Command) -> String {
     if cmd.subcommands.is_empty() {
         return "".into();
     }
@@ -55,8 +55,8 @@ fn subcommands_normal(cmd: &CommandBuilder<String>) -> String {
     buf
 }
 
-fn args_normal(cmd: &CommandBuilder<String>) -> String {
-    if cmd.args.is_empty() {
+fn args_normal(cmd: &Command) -> String {
+    if cmd.args.args.is_empty() {
         return "".into();
     }
     let mut buf = String::from("ARGS:\n");
@@ -71,9 +71,9 @@ fn args_normal(cmd: &CommandBuilder<String>) -> String {
     buf
 }
 
-fn usage_normal(cmd: &CommandBuilder<String>, fullname: &str) -> String {
+fn usage_normal(cmd: &Command, fullname: &str) -> String {
     let mut buf = String::from("USAGE:");
-    if !cmd.args.is_empty() {
+    if !cmd.args.args.is_empty() {
         buf.push_str(&format!("\n\t{fullname} [ARGS]"))
     }
     if !cmd.subcommands.is_empty() {
@@ -82,7 +82,7 @@ fn usage_normal(cmd: &CommandBuilder<String>, fullname: &str) -> String {
     buf
 }
 
-fn create_normal(cmd: &CommandBuilder<String>) -> String {
+fn create_normal(cmd: &Command) -> String {
     let fullname = format!("{} {}", cmd.parents.join(" "), cmd.name);
     let fullname = fullname.trim();
     format!(
@@ -95,12 +95,8 @@ fn create_normal(cmd: &CommandBuilder<String>) -> String {
 {subcommands}{license}",
         fullname = fullname,
         description = cmd.description,
-        version = cmd.version.clone().unwrap_or("".into()),
-        author = cmd
-            .author
-            .clone()
-            .map(|a| format!("{a}\n"))
-            .unwrap_or("".into()),
+        version = cmd.version.unwrap_or(""),
+        author = cmd.author.map(|a| format!("{a}\n")).unwrap_or("".into()),
         usage = usage_normal(cmd, fullname),
         args = args_normal(cmd),
         subcommands = subcommands_normal(cmd),
@@ -108,7 +104,7 @@ fn create_normal(cmd: &CommandBuilder<String>) -> String {
     )
 }
 
-fn subcommands_color(cmd: &CommandBuilder<String>) -> String {
+fn subcommands_color(cmd: &Command) -> String {
     if cmd.subcommands.is_empty() {
         return "".into();
     }
@@ -125,8 +121,8 @@ fn subcommands_color(cmd: &CommandBuilder<String>) -> String {
     buf
 }
 
-fn args_color(cmd: &CommandBuilder<String>) -> String {
-    if cmd.args.is_empty() {
+fn args_color(cmd: &Command) -> String {
+    if cmd.args.args.is_empty() {
         return "".into();
     }
     let mut buf: String = format!("{}", "ARGS:\n".bold().underline());
@@ -142,9 +138,9 @@ fn args_color(cmd: &CommandBuilder<String>) -> String {
     buf
 }
 
-fn usage_color(cmd: &CommandBuilder<String>, fullname: &str) -> String {
+fn usage_color(cmd: &Command, fullname: &str) -> String {
     let mut buf: String = format!("{}", "USAGE:".bold().underline());
-    if !cmd.args.is_empty() {
+    if !cmd.args.args.is_empty() {
         buf.push_str(&format!(
             "\n\t{fullname} [ARGS]",
             fullname = fullname.bold()
@@ -159,7 +155,7 @@ fn usage_color(cmd: &CommandBuilder<String>, fullname: &str) -> String {
     buf
 }
 
-fn create_color(cmd: &CommandBuilder<String>) -> String {
+fn create_color(cmd: &Command) -> String {
     let fullname = format!("{} {}", cmd.parents.join(" "), cmd.name);
     let fullname = fullname.trim();
     format!(
@@ -172,10 +168,9 @@ fn create_color(cmd: &CommandBuilder<String>) -> String {
 {subcommands}{license}",
         fullname = fullname.bold(),
         description = cmd.description,
-        version = cmd.version.clone().unwrap_or("".into()).dimmed(),
+        version = cmd.version.unwrap_or("").dimmed(),
         author = cmd
             .author
-            .clone()
             .map(|a| format!("{a}\n"))
             .unwrap_or("".into())
             .italic(),
@@ -186,7 +181,7 @@ fn create_color(cmd: &CommandBuilder<String>) -> String {
     )
 }
 
-pub fn create(cmd: &CommandBuilder<String>) -> String {
+pub fn create(cmd: &Command) -> String {
     if cmd.color {
         create_color(cmd)
     } else {
