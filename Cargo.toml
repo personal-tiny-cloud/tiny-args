@@ -9,5 +9,5 @@ repository = "https://github.com/personal-tiny-cloud/tiny-args"
 readme = "README.md"
 
 [dependencies]
-smol_str = "0.2"
+smol_str = "0.3"
 owo-colors = "4"
